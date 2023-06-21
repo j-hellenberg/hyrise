@@ -21,11 +21,16 @@ class TableKeyConstraint final : public AbstractTableConstraint {
    * voilating the set semantics of the constraint.
    */
   TableKeyConstraint(const std::set<ColumnID>& columns, const KeyConstraintType key_type);
+  TableKeyConstraint(const std::set<ColumnID>& columns, const KeyConstraintType key_type, CommitID last_validated_on);
   TableKeyConstraint() = delete;
+
+  const std::set<ColumnID>& columns() const;
 
   KeyConstraintType key_type() const;
 
-  const std::set<ColumnID>& columns() const;
+  CommitID last_validated_on() const;
+
+  void revalidated_on(CommitID revalidation_commit_id);
 
   size_t hash() const override;
 
@@ -39,13 +44,19 @@ class TableKeyConstraint final : public AbstractTableConstraint {
  protected:
   bool _on_equals(const AbstractTableConstraint& table_constraint) const override;
 
-  KeyConstraintType _key_type;
-
   /**
    * A std::set orders the columns ascending out of the box, which is desirable when printing them or comparing key
    * constraints.
    */
   std::set<ColumnID> _columns;
+
+  KeyConstraintType _key_type;
+
+  /**
+   * Commit ID during which this constraint was last validated. Note that the constraint will still be valid during
+   * transactions with larger commit IDs if the table this constraint belongs to has not been modified since.
+   */
+  CommitID _last_validated_on;
 };
 
 using TableKeyConstraints = std::unordered_set<TableKeyConstraint>;
