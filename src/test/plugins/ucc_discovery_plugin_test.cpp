@@ -26,6 +26,8 @@
 #include "storage/table.hpp"
 #include "utils/load_table.hpp"
 #include "utils/plugin_manager.hpp"
+#include "operators/table_wrapper.hpp"
+#include "operators/delete.hpp"
 
 namespace hyrise {
 
@@ -254,6 +256,39 @@ TEST_P(UccDiscoveryPluginMultiEncodingTest, ValidateCandidates) {
 
   EXPECT_TRUE(constraints_B.contains({{ColumnID{0}}, KeyConstraintType::UNIQUE}));
   EXPECT_FALSE(constraints_B.contains({{ColumnID{1}}, KeyConstraintType::UNIQUE}));
+}
+
+TEST_P(UccDiscoveryPluginMultiEncodingTest, ValidateCandidatesAfterDeletion) {
+  _encode_table(_table_A, GetParam());
+
+  auto transaction_context = Hyrise::get().transaction_manager.new_transaction_context(AutoCommit::No);
+
+  const auto table = std::make_shared<TableWrapper>(_table_A);
+  table->execute();
+  auto table_scan = create_table_scan(table, ColumnID{0}, PredicateCondition::Equals, 6);
+  table_scan->execute();
+
+  auto delete_op = std::make_shared<Delete>(table_scan);
+  delete_op->set_transaction_context(transaction_context);
+  delete_op->execute();
+
+  transaction_context->commit();
+  // Insert all columns as candidates
+  auto ucc_candidates = UccCandidates{{"uniquenessTestTableA", ColumnID{0}},
+                                      {"uniquenessTestTableA", ColumnID{1}},
+                                      {"uniquenessTestTableA", ColumnID{2}}};
+
+  _validate_ucc_candidates(ucc_candidates);
+
+  // Collect constraints known for the tables
+  const auto& constraints_A = _table_A->soft_key_constraints();
+
+  EXPECT_EQ(constraints_A.size(), 3);
+
+  EXPECT_TRUE(constraints_A.contains({{ColumnID{0}}, KeyConstraintType::UNIQUE}));
+  EXPECT_TRUE(constraints_A.contains({{ColumnID{2}}, KeyConstraintType::UNIQUE}));
+  EXPECT_TRUE(constraints_A.contains({{ColumnID{1}}, KeyConstraintType::UNIQUE}));
+
 }
 
 TEST_P(UccDiscoveryPluginMultiEncodingTest, PluginFullRun) {
