@@ -15,6 +15,7 @@
 #include "magic_enum.hpp"
 #include "resolve_type.hpp"
 #include "storage/fixed_string_dictionary_segment.hpp"
+#include "storage/mvcc_data.hpp"
 #include "storage/segment_iterate.hpp"
 #include "utils/format_duration.hpp"
 #include "utils/timer.hpp"
@@ -163,7 +164,11 @@ bool UccDiscoveryPlugin::_dictionary_segments_contain_duplicates(const std::shar
     if (!source_segment) {
       continue;
     }
-
+    // At least one entry has been deleted. Because the deleted entry might have been a duplicate, we can't be sure
+    // that the segment still has duplicates.
+    if (source_chunk->mvcc_data()->max_end_cid != MvccData::MAX_COMMIT_ID) {
+      return false;
+    }
     if (const auto& dictionary_segment = std::dynamic_pointer_cast<DictionarySegment<ColumnDataType>>(source_segment)) {
       if (dictionary_segment->unique_values_count() != dictionary_segment->size()) {
         return true;
