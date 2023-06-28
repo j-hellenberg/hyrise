@@ -111,7 +111,7 @@ UniqueColumnCombinations StoredTableNode::unique_column_combinations() const {
                 "Unexpected count of column expressions.");
 
     // Create UniqueColumnCombination
-    unique_column_combinations.emplace(column_expressions);
+    unique_column_combinations.emplace(column_expressions, table_key_constraint.last_validated_on());
   }
 
   return unique_column_combinations;

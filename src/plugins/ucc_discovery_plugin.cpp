@@ -96,6 +96,8 @@ UccCandidates UccDiscoveryPlugin::_identify_ucc_candidates() {
 }
 
 void UccDiscoveryPlugin::_validate_ucc_candidates(const UccCandidates& ucc_candidates) {
+  const auto snapshot_id = Hyrise::get().transaction_manager.last_commit_id();
+
   for (const auto& candidate : ucc_candidates) {
     auto candidate_timer = Timer();
     const auto table = Hyrise::get().storage_manager.get_table(candidate.table_name);
@@ -137,7 +139,7 @@ void UccDiscoveryPlugin::_validate_ucc_candidates(const UccCandidates& ucc_candi
       // We save UCCs directly inside the table so they can be forwarded to nodes in a query plan.
       message << " [confirmed in " << candidate_timer.lap_formatted() << "]";
       Hyrise::get().log_manager.add_message("UccDiscoveryPlugin", message.str(), LogLevel::Info);
-      table->add_soft_key_constraint(TableKeyConstraint({column_id}, KeyConstraintType::UNIQUE));
+      table->add_soft_key_constraint(TableKeyConstraint({column_id}, KeyConstraintType::UNIQUE, snapshot_id));
     });
   }
   Hyrise::get().log_manager.add_message("UccDiscoveryPlugin", "Clearing LQP and PQP cache...", LogLevel::Debug);
