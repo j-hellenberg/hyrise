@@ -13,10 +13,13 @@
 #include "logical_query_plan/predicate_node.hpp"
 #include "logical_query_plan/stored_table_node.hpp"
 #include "magic_enum.hpp"
+#include "operators/get_table.hpp"
+#include "operators/validate.hpp"
 #include "resolve_type.hpp"
 #include "storage/fixed_string_dictionary_segment.hpp"
 #include "storage/mvcc_data.hpp"
 #include "storage/segment_iterate.hpp"
+#include "types.hpp"
 #include "utils/format_duration.hpp"
 #include "utils/timer.hpp"
 
@@ -97,7 +100,7 @@ UccCandidates UccDiscoveryPlugin::_identify_ucc_candidates() {
 }
 
 void UccDiscoveryPlugin::_validate_ucc_candidates(const UccCandidates& ucc_candidates) {
-  const auto snapshot_id = Hyrise::get().transaction_manager.last_commit_id();
+  const auto transaction_context = Hyrise::get().transaction_manager.new_transaction_context(AutoCommit::Yes);
 
   for (const auto& candidate : ucc_candidates) {
     auto candidate_timer = Timer();
@@ -131,7 +134,8 @@ void UccDiscoveryPlugin::_validate_ucc_candidates(const UccCandidates& ucc_candi
       }
 
       // If we reach here, we have to run the more expensive cross-segment duplicate check.
-      if (!_uniqueness_holds_across_segments<ColumnDataType>(table, column_id)) {
+      if (!_uniqueness_holds_across_segments<ColumnDataType>(table, candidate.table_name, column_id,
+                                                             transaction_context)) {
         message << " [rejected in " << candidate_timer.lap_formatted() << "]";
         Hyrise::get().log_manager.add_message("UccDiscoveryPlugin", message.str(), LogLevel::Info);
         return;
@@ -140,7 +144,8 @@ void UccDiscoveryPlugin::_validate_ucc_candidates(const UccCandidates& ucc_candi
       // We save UCCs directly inside the table so they can be forwarded to nodes in a query plan.
       message << " [confirmed in " << candidate_timer.lap_formatted() << "]";
       Hyrise::get().log_manager.add_message("UccDiscoveryPlugin", message.str(), LogLevel::Info);
-      table->add_soft_key_constraint(TableKeyConstraint({column_id}, KeyConstraintType::UNIQUE, snapshot_id));
+      table->add_soft_key_constraint(
+          TableKeyConstraint({column_id}, KeyConstraintType::UNIQUE, transaction_context->snapshot_commit_id()));
     });
   }
   Hyrise::get().log_manager.add_message("UccDiscoveryPlugin", "Clearing LQP and PQP cache...", LogLevel::Debug);
@@ -187,35 +192,85 @@ bool UccDiscoveryPlugin::_dictionary_segments_contain_duplicates(const std::shar
 }
 
 template <typename ColumnDataType>
-bool UccDiscoveryPlugin::_uniqueness_holds_across_segments(const std::shared_ptr<const Table>& table,
-                                                           const ColumnID column_id) {
+bool UccDiscoveryPlugin::_uniqueness_holds_across_segments(
+    const std::shared_ptr<const Table>& table, const std::string table_name, const ColumnID column_id,
+    const std::shared_ptr<TransactionContext>& transaction_context) {
   const auto chunk_count = table->chunk_count();
   // `distinct_values` collects the segment values from all chunks.
   auto distinct_values = std::unordered_set<ColumnDataType>{};
 
+  bool some_chunk_was_modified = false;
   for (auto chunk_id = ChunkID{0}; chunk_id < chunk_count; ++chunk_id) {
     const auto source_chunk = table->get_chunk(chunk_id);
-    if (!source_chunk) {
-      continue;
+    if (source_chunk->mvcc_data()->max_end_cid != MvccData::MAX_COMMIT_ID) {
+      some_chunk_was_modified = true;
     }
-    const auto source_segment = source_chunk->get_segment(column_id);
-    if (!source_segment) {
-      continue;
+  }
+
+  if (some_chunk_was_modified) {
+    for (auto chunk_id = ChunkID{0}; chunk_id < chunk_count; ++chunk_id) {
+      const auto source_chunk = table->get_chunk(chunk_id);
+      if (!source_chunk) {
+        continue;
+      }
+      const auto source_segment = source_chunk->get_segment(column_id);
+      if (!source_segment) {
+        continue;
+      }
+
+      const auto expected_distinct_value_count = distinct_values.size() + source_segment->size();
+
+      if (const auto& value_segment = std::dynamic_pointer_cast<ValueSegment<ColumnDataType>>(source_segment)) {
+        // Directly insert all values.
+        const auto& values = value_segment->values();
+        distinct_values.insert(values.cbegin(), values.cend());
+      } else if (const auto& dictionary_segment =
+                     std::dynamic_pointer_cast<DictionarySegment<ColumnDataType>>(source_segment)) {
+        // Directly insert dictionary entries.
+        const auto& dictionary = dictionary_segment->dictionary();
+        distinct_values.insert(dictionary->cbegin(), dictionary->cend());
+      } else {
+        // Fallback: Iterate the whole segment and decode its values.
+        auto distinct_value_count = distinct_values.size();
+        segment_with_iterators<ColumnDataType>(*source_segment, [&](auto it, const auto end) {
+          while (it != end) {
+            if (it->is_null()) {
+              break;
+            }
+            distinct_values.insert(it->value());
+            if (distinct_value_count + 1 != distinct_values.size()) {
+              break;
+            }
+            ++distinct_value_count;
+            ++it;
+          }
+        });
+      }
+      // If not all elements have been inserted, there must be a duplicate, so the UCC is violated.
+      if (distinct_values.size() != expected_distinct_value_count) {
+        return false;
+      }
     }
+  } else {
+    const auto logical_table = std::make_shared<GetTable>(table_name);
+    logical_table->execute();
+    const auto validate_table_operator = std::make_shared<Validate>(logical_table);
+    validate_table_operator->execute();
+    validate_table_operator->set_transaction_context(transaction_context);
 
-    const auto expected_distinct_value_count = distinct_values.size() + source_segment->size();
+    const auto& validate_table = validate_table_operator->get_output();
+    const auto validated_chunk_count = validate_table->chunk_count();
+    for (auto chunk_id = ChunkID{0}; chunk_id < validated_chunk_count; ++chunk_id) {
+      const auto source_chunk = validate_table->get_chunk(chunk_id);
+      if (!source_chunk) {
+        continue;
+      }
+      const auto source_segment = source_chunk->get_segment(column_id);
+      if (!source_segment) {
+        continue;
+      }
 
-    if (const auto& value_segment = std::dynamic_pointer_cast<ValueSegment<ColumnDataType>>(source_segment)) {
-      // Directly insert all values.
-      const auto& values = value_segment->values();
-      distinct_values.insert(values.cbegin(), values.cend());
-    } else if (const auto& dictionary_segment =
-                   std::dynamic_pointer_cast<DictionarySegment<ColumnDataType>>(source_segment)) {
-      // Directly insert dictionary entries.
-      const auto& dictionary = dictionary_segment->dictionary();
-      distinct_values.insert(dictionary->cbegin(), dictionary->cend());
-    } else {
-      // Fallback: Iterate the whole segment and decode its values.
+      const auto expected_distinct_value_count = distinct_values.size() + source_segment->size();
       auto distinct_value_count = distinct_values.size();
       segment_with_iterators<ColumnDataType>(*source_segment, [&](auto it, const auto end) {
         while (it != end) {
@@ -230,14 +285,12 @@ bool UccDiscoveryPlugin::_uniqueness_holds_across_segments(const std::shared_ptr
           ++it;
         }
       });
-    }
-
-    // If not all elements have been inserted, there must be a duplicate, so the UCC is violated.
-    if (distinct_values.size() != expected_distinct_value_count) {
-      return false;
+      // If not all elements have been inserted, there must be a duplicate, so the UCC is violated.
+      if (distinct_values.size() != expected_distinct_value_count) {
+        return false;
+      }
     }
   }
-
   return true;
 }
 
