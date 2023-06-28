@@ -113,14 +113,36 @@ void UccDiscoveryPlugin::_validate_ucc_candidates(const UccCandidates& ucc_candi
     const auto& soft_key_constraints = table->soft_key_constraints();
 
     // Skip already discovered UCCs.
-    if (std::any_of(soft_key_constraints.cbegin(), soft_key_constraints.cend(),
-                    [&column_id](const auto& key_constraint) {
+    // TODO: Can there be more than one key_constraint per column/ucc_candidate?
+    if (const auto& key_constraint = std::find_if(soft_key_constraints.cbegin(), soft_key_constraints.cend(),
+                    [&column_id, &table](const auto& key_constraint) {
                       const auto& columns = key_constraint.columns();
+
                       return columns.size() == 1 && *columns.cbegin() == column_id;
-                    })) {
-      message << " [skipped (already known) in " << candidate_timer.lap_formatted() << "]";
-      Hyrise::get().log_manager.add_message("UccDiscoveryPlugin", message.str(), LogLevel::Info);
-      continue;
+                    }); key_constraint != soft_key_constraints.cend()) {
+
+      const auto chunk_count = table->chunk_count();
+      bool guaranteed_to_be_valid = true;
+      for (auto chunk_id = ChunkID{0}; chunk_id < chunk_count; ++chunk_id) {
+        const auto source_chunk = table->get_chunk(chunk_id);
+        if (source_chunk->mvcc_data()->max_begin_cid != MvccData::MAX_COMMIT_ID &&
+            source_chunk->mvcc_data()->max_begin_cid > key_constraint->last_validated_on()) {
+          guaranteed_to_be_valid = false;
+          break;
+        }
+        if (source_chunk->mvcc_data()->max_end_cid != MvccData::MAX_COMMIT_ID &&
+            source_chunk->mvcc_data()->max_end_cid > key_constraint->last_validated_on())  {
+          guaranteed_to_be_valid = false;
+          break;
+        }
+      }
+      if (guaranteed_to_be_valid) {
+        message << " [skipped (already known) in " << candidate_timer.lap_formatted() << "]";
+        Hyrise::get().log_manager.add_message("UccDiscoveryPlugin", message.str(), LogLevel::Info);
+        continue;
+      } else {
+        // TODO: Delete table_key_constraint
+      }
     }
 
     resolve_data_type(table->column_data_type(column_id), [&](const auto data_type_t) {
