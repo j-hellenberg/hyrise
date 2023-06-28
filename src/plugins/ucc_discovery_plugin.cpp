@@ -229,7 +229,7 @@ bool UccDiscoveryPlugin::_uniqueness_holds_across_segments(
     }
   }
 
-  if (some_chunk_was_modified) {
+  if (!some_chunk_was_modified) {
     for (auto chunk_id = ChunkID{0}; chunk_id < chunk_count; ++chunk_id) {
       const auto source_chunk = table->get_chunk(chunk_id);
       if (!source_chunk) {
@@ -277,8 +277,8 @@ bool UccDiscoveryPlugin::_uniqueness_holds_across_segments(
     const auto logical_table = std::make_shared<GetTable>(table_name);
     logical_table->execute();
     const auto validate_table_operator = std::make_shared<Validate>(logical_table);
-    validate_table_operator->execute();
     validate_table_operator->set_transaction_context(transaction_context);
+    validate_table_operator->execute();
 
     const auto& validate_table = validate_table_operator->get_output();
     const auto validated_chunk_count = validate_table->chunk_count();
