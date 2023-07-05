@@ -209,9 +209,10 @@ bool UccDiscoveryPlugin::_dictionary_segments_contain_duplicates(const std::shar
     if (!source_segment) {
       continue;
     }
-    // At least one entry has been deleted. Because the deleted entry might have been a duplicate, we can't be sure
-    // that the segment still has duplicates.
+
     if (source_chunk->invalid_row_count() != 0 || source_chunk->is_mutable()) {
+      // The segment might have been modified. Because the modification might consist of deleting a duplicate value,
+      // we can't be sure that the segment still has duplicates using the heuristic employed below.
       return false;
     }
     if (const auto& dictionary_segment = std::dynamic_pointer_cast<DictionarySegment<ColumnDataType>>(source_segment)) {
@@ -251,6 +252,8 @@ bool UccDiscoveryPlugin::_uniqueness_holds_across_segments( // TODO: try to clea
     }
 
     if (source_chunk->invalid_row_count() == 0 && !source_chunk->is_mutable()) {
+      // We know that this segment has not been modified, so there is no need to use the Validate operator indirection
+      // to access its values.
       not_modified_chunks.push_back(chunk_id);
 
       const auto expected_distinct_value_count = distinct_values.size() + source_segment->size();
