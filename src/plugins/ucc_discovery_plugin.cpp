@@ -211,7 +211,7 @@ bool UccDiscoveryPlugin::_dictionary_segments_contain_duplicates(const std::shar
     }
     // At least one entry has been deleted. Because the deleted entry might have been a duplicate, we can't be sure
     // that the segment still has duplicates.
-    if (source_chunk->mvcc_data()->max_end_cid != MvccData::MAX_COMMIT_ID) {
+    if (source_chunk->invalid_row_count() != 0 || source_chunk->is_mutable()) {
       return false;
     }
     if (const auto& dictionary_segment = std::dynamic_pointer_cast<DictionarySegment<ColumnDataType>>(source_segment)) {
@@ -243,7 +243,7 @@ bool UccDiscoveryPlugin::_uniqueness_holds_across_segments(
   auto not_modified_chunks = std::vector<ChunkID>();
   for (auto chunk_id = ChunkID{0}; chunk_id < chunk_count; ++chunk_id) {
     const auto source_chunk = table->get_chunk(chunk_id);
-    if (source_chunk->mvcc_data()->max_end_cid != MvccData::MAX_COMMIT_ID) {
+    if (source_chunk->invalid_row_count() != 0 || source_chunk->is_mutable()) {
       some_chunk_was_modified = true;
     } else {
       not_modified_chunks.push_back(chunk_id);
