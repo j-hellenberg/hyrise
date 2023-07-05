@@ -238,27 +238,19 @@ bool UccDiscoveryPlugin::_uniqueness_holds_across_segments(
   // `distinct_values` collects the segment values from all chunks.
   auto distinct_values = std::unordered_set<ColumnDataType>{};
 
-  bool some_chunk_was_modified = false;
   auto not_modified_chunks = std::vector<ChunkID>();
   for (auto chunk_id = ChunkID{0}; chunk_id < chunk_count; ++chunk_id) {
     const auto source_chunk = table->get_chunk(chunk_id);
-    if (source_chunk->invalid_row_count() != 0 || source_chunk->is_mutable()) {
-      some_chunk_was_modified = true;
-    } else {
-      not_modified_chunks.push_back(chunk_id);
+    if (!source_chunk) {
+      continue;
     }
-  }
+    const auto source_segment = source_chunk->get_segment(column_id);
+    if (!source_segment) {
+      continue;
+    }
 
-  if (!some_chunk_was_modified) {
-    for (auto chunk_id = ChunkID{0}; chunk_id < chunk_count; ++chunk_id) {
-      const auto source_chunk = table->get_chunk(chunk_id);
-      if (!source_chunk) {
-        continue;
-      }
-      const auto source_segment = source_chunk->get_segment(column_id);
-      if (!source_segment) {
-        continue;
-      }
+    if (source_chunk->invalid_row_count() == 0 && !source_chunk->is_mutable()) {
+      not_modified_chunks.push_back(chunk_id);
 
       const auto expected_distinct_value_count = distinct_values.size() + source_segment->size();
 
@@ -293,46 +285,47 @@ bool UccDiscoveryPlugin::_uniqueness_holds_across_segments(
         return false;
       }
     }
-  } else {
-    const auto logical_table = std::make_shared<GetTable>(table_name, not_modified_chunks, std::vector<ColumnID>());
-    logical_table->execute();
-    const auto validate_table_operator = std::make_shared<Validate>(logical_table);
-    validate_table_operator->set_transaction_context(transaction_context);
-    validate_table_operator->execute();
+  }
 
-    const auto& validate_table = validate_table_operator->get_output();
-    const auto validated_chunk_count = validate_table->chunk_count();
-    for (auto chunk_id = ChunkID{0}; chunk_id < validated_chunk_count; ++chunk_id) {
-      const auto source_chunk = validate_table->get_chunk(chunk_id);
-      if (!source_chunk) {
-        continue;
-      }
-      const auto source_segment = source_chunk->get_segment(column_id);
-      if (!source_segment) {
-        continue;
-      }
+  const auto logical_table = std::make_shared<GetTable>(table_name, not_modified_chunks, std::vector<ColumnID>());
+  logical_table->execute();
+  const auto validate_table_operator = std::make_shared<Validate>(logical_table);
+  validate_table_operator->set_transaction_context(transaction_context);
+  validate_table_operator->execute();
 
-      const auto expected_distinct_value_count = distinct_values.size() + source_segment->size();
-      auto distinct_value_count = distinct_values.size();
-      segment_with_iterators<ColumnDataType>(*source_segment, [&](auto it, const auto end) {
-        while (it != end) {
-          if (it->is_null()) {
-            break;
-          }
-          distinct_values.insert(it->value());
-          if (distinct_value_count + 1 != distinct_values.size()) {
-            break;
-          }
-          ++distinct_value_count;
-          ++it;
+  const auto& validate_table = validate_table_operator->get_output();
+  const auto validated_chunk_count = validate_table->chunk_count();
+  for (auto chunk_id = ChunkID{0}; chunk_id < validated_chunk_count; ++chunk_id) {
+    const auto source_chunk = validate_table->get_chunk(chunk_id);
+    if (!source_chunk) {
+      continue;
+    }
+    const auto source_segment = source_chunk->get_segment(column_id);
+    if (!source_segment) {
+      continue;
+    }
+
+    const auto expected_distinct_value_count = distinct_values.size() + source_segment->size();
+    auto distinct_value_count = distinct_values.size();
+    segment_with_iterators<ColumnDataType>(*source_segment, [&](auto it, const auto end) {
+      while (it != end) {
+        if (it->is_null()) {
+          break;
         }
-      });
-      // If not all elements have been inserted, there must be a duplicate, so the UCC is violated.
-      if (distinct_values.size() != expected_distinct_value_count) {
-        return false;
+        distinct_values.insert(it->value());
+        if (distinct_value_count + 1 != distinct_values.size()) {
+          break;
+        }
+        ++distinct_value_count;
+        ++it;
       }
+    });
+    // If not all elements have been inserted, there must be a duplicate, so the UCC is violated.
+    if (distinct_values.size() != expected_distinct_value_count) {
+      return false;
     }
   }
+
   return true;
 }
 
