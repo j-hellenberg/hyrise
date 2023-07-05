@@ -115,12 +115,12 @@ void UccDiscoveryPlugin::_validate_ucc_candidates(const UccCandidates& ucc_candi
     // Skip already discovered UCCs.
     // TODO: Can there be more than one key_constraint per column/ucc_candidate?
     if (const auto& key_constraint = std::find_if(soft_key_constraints.cbegin(), soft_key_constraints.cend(),
-                    [&column_id, &table](const auto& key_constraint) {
-                      const auto& columns = key_constraint.columns();
+                                                  [&column_id, &table](const auto& key_constraint) {
+                                                    const auto& columns = key_constraint.columns();
 
-                      return columns.size() == 1 && *columns.cbegin() == column_id;
-                    }); key_constraint != soft_key_constraints.cend()) {
-
+                                                    return columns.size() == 1 && *columns.cbegin() == column_id;
+                                                  });
+        key_constraint != soft_key_constraints.cend()) {
       const auto chunk_count = table->chunk_count();
       bool guaranteed_to_be_valid = true;
       for (auto chunk_id = ChunkID{0}; chunk_id < chunk_count; ++chunk_id) {
@@ -131,7 +131,7 @@ void UccDiscoveryPlugin::_validate_ucc_candidates(const UccCandidates& ucc_candi
           break;
         }
         if (source_chunk->mvcc_data()->max_end_cid != MvccData::MAX_COMMIT_ID &&
-            source_chunk->mvcc_data()->max_end_cid > key_constraint->last_validated_on())  {
+            source_chunk->mvcc_data()->max_end_cid > key_constraint->last_validated_on()) {
           guaranteed_to_be_valid = false;
           break;
         }
@@ -222,10 +222,13 @@ bool UccDiscoveryPlugin::_uniqueness_holds_across_segments(
   auto distinct_values = std::unordered_set<ColumnDataType>{};
 
   bool some_chunk_was_modified = false;
+  auto not_modified_chunks = std::vector<ChunkID>();
   for (auto chunk_id = ChunkID{0}; chunk_id < chunk_count; ++chunk_id) {
     const auto source_chunk = table->get_chunk(chunk_id);
     if (source_chunk->mvcc_data()->max_end_cid != MvccData::MAX_COMMIT_ID) {
       some_chunk_was_modified = true;
+    } else {
+      not_modified_chunks.push_back(chunk_id);
     }
   }
 
@@ -274,7 +277,7 @@ bool UccDiscoveryPlugin::_uniqueness_holds_across_segments(
       }
     }
   } else {
-    const auto logical_table = std::make_shared<GetTable>(table_name);
+    const auto logical_table = std::make_shared<GetTable>(table_name, not_modified_chunks, std::vector<ColumnID>());
     logical_table->execute();
     const auto validate_table_operator = std::make_shared<Validate>(logical_table);
     validate_table_operator->set_transaction_context(transaction_context);
