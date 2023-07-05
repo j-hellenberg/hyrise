@@ -126,6 +126,7 @@ void UccDiscoveryPlugin::_validate_ucc_candidates(const UccCandidates& ucc_candi
     if (existing_ucc != soft_key_constraints.cend() && _ucc_guaranteed_to_be_still_valid(table, *existing_ucc)) {
       message << " [skipped (already known and guaranteed to be still valid) in " << candidate_timer.lap_formatted() << "]";
       Hyrise::get().log_manager.add_message("UccDiscoveryPlugin", message.str(), LogLevel::Info);
+      existing_ucc->revalidated_on(transaction_context->snapshot_commit_id());
       continue;
     }
 
@@ -231,7 +232,7 @@ bool UccDiscoveryPlugin::_dictionary_segments_contain_duplicates(const std::shar
 }
 
 template <typename ColumnDataType>
-bool UccDiscoveryPlugin::_uniqueness_holds_across_segments(
+bool UccDiscoveryPlugin::_uniqueness_holds_across_segments( // TODO: try to clean up this method
     const std::shared_ptr<const Table>& table, const std::string table_name, const ColumnID column_id,
     const std::shared_ptr<TransactionContext>& transaction_context) {
   const auto chunk_count = table->chunk_count();

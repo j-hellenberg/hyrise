@@ -24,7 +24,7 @@ CommitID TableKeyConstraint::last_validated_on() const {
 }
 
 void TableKeyConstraint::revalidated_on(CommitID revalidation_commit_id) const {
-  DebugAssert(revalidation_commit_id > _last_validated_on,
+  DebugAssert(revalidation_commit_id >= _last_validated_on,
               "Key constraint was already validated for larger commit id.");
   _last_validated_on = revalidation_commit_id;
 }

@@ -76,6 +76,28 @@ class UccDiscoveryPluginTest : public BaseTest {
     ChunkEncoder::encode_all_chunks(table, chunk_encoding_spec);
   }
 
+  void _duplicate_table(std::string table_name) {
+    auto transaction_context = Hyrise::get().transaction_manager.new_transaction_context(AutoCommit::No);
+    const auto get_table = std::make_shared<GetTable>(table_name);
+    get_table->execute();
+    auto insert_op = std::make_shared<Insert>(table_name, get_table);
+    insert_op->set_transaction_context(transaction_context);
+    insert_op->execute();
+    transaction_context->commit();
+  }
+
+  void _delete_row(std::shared_ptr<Table> table, size_t rowId) {
+    auto transaction_context = Hyrise::get().transaction_manager.new_transaction_context(AutoCommit::No);
+    const auto table_wrapper = std::make_shared<TableWrapper>(table);
+    table_wrapper->execute();
+    auto table_scan = create_table_scan(table_wrapper, ColumnID{0}, PredicateCondition::Equals, table->get_row(rowId).at(0));
+    table_scan->execute();
+    auto delete_op = std::make_shared<Delete>(table_scan);
+    delete_op->set_transaction_context(transaction_context);
+    delete_op->execute();
+    transaction_context->commit();
+  }
+
   const std::string _table_name_A{"uniquenessTestTableA"};
   const std::string _table_name_B{"uniquenessTestTableB"};
   const ChunkOffset _chunk_size{2};
@@ -262,30 +284,40 @@ TEST_P(UccDiscoveryPluginMultiEncodingTest, ValidateCandidates) {
 TEST_P(UccDiscoveryPluginMultiEncodingTest, ValidateCandidatesAfterDeletion) {
   _encode_table(_table_A, GetParam());
 
-  auto transaction_context = Hyrise::get().transaction_manager.new_transaction_context(AutoCommit::No);
+  // Delete row of _table_A that had a duplicate value regarding column 1 such that column 1 is unique afterwards.
+  _delete_row(_table_A, 3);
 
-  const auto table = std::make_shared<TableWrapper>(_table_A);
-  table->execute();
-  auto table_scan = create_table_scan(table, ColumnID{1}, PredicateCondition::Equals, 10);
-  table_scan->execute();
-
-  auto delete_op = std::make_shared<Delete>(table_scan);
-  delete_op->set_transaction_context(transaction_context);
-  delete_op->execute();
-
-  transaction_context->commit();
-  // Insert the previously not unique column 1 as candidate, since it is unique now
+  // We are only interested in column 1, since it was not unique before the deletion but should be now
   auto ucc_candidates = UccCandidates{{"uniquenessTestTableA", ColumnID{1}}};
 
   _validate_ucc_candidates(ucc_candidates);
 
   // Collect constraints known for the tables
   const auto& constraints_A = _table_A->soft_key_constraints();
-
   EXPECT_EQ(constraints_A.size(), 1);
-
   EXPECT_TRUE(constraints_A.contains({{ColumnID{1}}, KeyConstraintType::UNIQUE}));
+}
 
+TEST_P(UccDiscoveryPluginMultiEncodingTest, RevalidationUpdatesValidationTimestamp) {
+  _encode_table(_table_A, GetParam());
+
+  // We are only interested in column 1, since it was not unique before the deletion but should be now
+  auto ucc_candidates = UccCandidates{{"uniquenessTestTableA", ColumnID{0}}};
+
+  _validate_ucc_candidates(ucc_candidates);
+
+  // Perform transaction that does not affect table A but increments the global Commit ID
+  _delete_row(_table_B, 0);
+
+  // Collect constraints known for the tables
+  const auto& constraints_A = _table_A->soft_key_constraints();
+  const auto column_1_constraint = constraints_A.find({{ColumnID{0}}, KeyConstraintType::UNIQUE});
+  EXPECT_EQ(constraints_A.size(), 1);
+  EXPECT_TRUE(constraints_A.contains({{ColumnID{0}}, KeyConstraintType::UNIQUE}));
+  const auto first_validation_timestamp = column_1_constraint->last_validated_on();
+
+  _validate_ucc_candidates(ucc_candidates);
+  EXPECT_GT(column_1_constraint->last_validated_on(), first_validation_timestamp);
 }
 
 TEST_P(UccDiscoveryPluginMultiEncodingTest, DeletionOfModifiedUCC) {
@@ -301,20 +333,14 @@ TEST_P(UccDiscoveryPluginMultiEncodingTest, DeletionOfModifiedUCC) {
   EXPECT_TRUE(constraints_A.contains({{ColumnID{0}}, KeyConstraintType::UNIQUE}));
 
   // Insert table data into the table again -> creates duplicate for every row
-  auto transaction_context = Hyrise::get().transaction_manager.new_transaction_context(AutoCommit::No);
-
-  const auto table = std::make_shared<TableWrapper>(_table_A);
-  table->execute();
-  auto insert_op = std::make_shared<Insert>(_table_name_A, table);
-  insert_op->set_transaction_context(transaction_context);
-  insert_op->execute();
-
-  transaction_context->commit();
+  _duplicate_table(_table_name_A);
 
   _validate_ucc_candidates(ucc_candidates);
   const auto& constraints_B = _table_A->soft_key_constraints();
   EXPECT_FALSE(constraints_B.contains({{ColumnID{0}}, KeyConstraintType::UNIQUE}));
 }
+
+// TODO: test more edge cases
 
 TEST_P(UccDiscoveryPluginMultiEncodingTest, PluginFullRun) {
   // clang-format off
