@@ -163,8 +163,7 @@ void UccDiscoveryPlugin::_validate_ucc_candidates(const UccCandidates& ucc_candi
         }
       } else {
         if (existing_ucc != soft_key_constraints.end()) {
-          // UCC existed previously, we need to delete it
-          // TODO
+          table->delete_key_constraint(*existing_ucc);
         }
       }
     });

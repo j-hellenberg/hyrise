@@ -436,6 +436,10 @@ const TableKeyConstraints& Table::soft_key_constraints() const {
   return _table_key_constraints;
 }
 
+void Table::delete_key_constraint(const TableKeyConstraint& constraint) {
+  _table_key_constraints.erase(constraint);
+}
+
 void Table::add_soft_foreign_key_constraint(const ForeignKeyConstraint& foreign_key_constraint) {
   Assert(_type == TableType::Data, "ForeignKeyConstraints are not tracked for reference tables across the PQP.");
 
