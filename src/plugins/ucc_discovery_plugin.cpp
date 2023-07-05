@@ -154,7 +154,7 @@ void UccDiscoveryPlugin::_validate_ucc_candidates(const UccCandidates& ucc_candi
       if (ucc_is_currently_valid) {
         if (existing_ucc != soft_key_constraints.end()) {
           // UCC already exists, we need to update its validation commit ID.
-          // TODO
+          existing_ucc->revalidated_on(transaction_context->snapshot_commit_id());
         } else {
           // UCC does not exist yet, so we save it directly inside the table so that it can be forwarded to nodes
           // in a query plan.

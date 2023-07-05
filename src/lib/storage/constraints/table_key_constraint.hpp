@@ -30,7 +30,7 @@ class TableKeyConstraint final : public AbstractTableConstraint {
 
   CommitID last_validated_on() const;
 
-  void revalidated_on(CommitID revalidation_commit_id);
+  void revalidated_on(CommitID revalidation_commit_id) const;
 
   size_t hash() const override;
 
@@ -56,7 +56,7 @@ class TableKeyConstraint final : public AbstractTableConstraint {
    * Commit ID during which this constraint was last validated. Note that the constraint will still be valid during
    * transactions with larger commit IDs if the table this constraint belongs to has not been modified since.
    */
-  CommitID _last_validated_on;
+  mutable CommitID _last_validated_on;
 };
 
 using TableKeyConstraints = std::unordered_set<TableKeyConstraint>;
