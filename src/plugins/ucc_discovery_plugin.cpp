@@ -113,39 +113,40 @@ void UccDiscoveryPlugin::_validate_ucc_candidates(const UccCandidates& ucc_candi
     const auto& soft_key_constraints = table->soft_key_constraints();
 
     // Find UCC matching the candidate, if it already exists on the table.
-    const auto& existing_ucc = std::find_if(
-        soft_key_constraints.cbegin(), soft_key_constraints.cend(),
-        [&column_id](const auto& key_constraint) {
-          const auto& columns = key_constraint.columns();
+    const auto& existing_ucc = std::find_if(soft_key_constraints.cbegin(), soft_key_constraints.cend(),
+                                            [&column_id](const auto& key_constraint) {
+                                              const auto& columns = key_constraint.columns();
 
-          return columns.size() == 1 && *columns.cbegin() == column_id;
-        });
+                                              return columns.size() == 1 && *columns.cbegin() == column_id;
+                                            });
 
     // Check if MVCC data tells us that the existing UCC is guaranteed to be still valid.
     // If it is, we can skip the expensive revalidation of the UCC.
     if (existing_ucc != soft_key_constraints.cend() && _ucc_guaranteed_to_be_still_valid(table, *existing_ucc)) {
-      message << " [skipped (already known and guaranteed to be still valid) in " << candidate_timer.lap_formatted() << "]";
+      message << " [skipped (already known and guaranteed to be still valid) in " << candidate_timer.lap_formatted()
+              << "]";
       Hyrise::get().log_manager.add_message("UccDiscoveryPlugin", message.str(), LogLevel::Info);
       existing_ucc->revalidated_on(transaction_context->snapshot_commit_id());
       continue;
     }
 
-    // If no UCC already exists or the existing UCC is not guaranteed to be still valid, we have to now (re-)validate the
-    // UCC candidate.
+    // If no UCC already exists or the existing UCC is not guaranteed to be still valid, we have to now (re-)validate
+    // the UCC candidate.
     resolve_data_type(table->column_data_type(column_id), [&](const auto data_type_t) {
       using ColumnDataType = typename decltype(data_type_t)::type;
 
       bool ucc_is_currently_valid;
       // Utilize efficient check for uniqueness inside each dictionary segment for a potential early out.
+      // If that does not allow us to reject the UCC right away, we have to run the more expensive
+      // cross-segment duplicate check (next clause of the if-condition).
       if (_dictionary_segments_contain_duplicates<ColumnDataType>(table, column_id)) {
         ucc_is_currently_valid = false;
         message << " [rejected because some chunk contains duplicates in " << candidate_timer.lap_formatted() << "]";
-      }
-      // If we reach here, we have to run the more expensive cross-segment duplicate check.
-      else if (!_uniqueness_holds_across_segments<ColumnDataType>(table, candidate.table_name, column_id,
-                                                             transaction_context)) {
+      } else if (!_uniqueness_holds_across_segments<ColumnDataType>(table, candidate.table_name, column_id,
+                                                                    transaction_context)) {
         ucc_is_currently_valid = false;
-        message << " [rejected because the column has cross-segment duplicates in " << candidate_timer.lap_formatted() << "]";
+        message << " [rejected because the column has cross-segment duplicates in " << candidate_timer.lap_formatted()
+                << "]";
       } else {
         ucc_is_currently_valid = true;
         message << " [confirmed in " << candidate_timer.lap_formatted() << "]";
@@ -175,7 +176,8 @@ void UccDiscoveryPlugin::_validate_ucc_candidates(const UccCandidates& ucc_candi
   Hyrise::get().default_pqp_cache->clear();
 }
 
-bool UccDiscoveryPlugin::_ucc_guaranteed_to_be_still_valid(const std::shared_ptr<const Table>& table, const TableKeyConstraint& existing_ucc) {
+bool UccDiscoveryPlugin::_ucc_guaranteed_to_be_still_valid(const std::shared_ptr<const Table>& table,
+                                                           const TableKeyConstraint& existing_ucc) {
   bool guaranteed_to_be_valid = true;
   const auto chunk_count = table->chunk_count();
   for (auto chunk_id = ChunkID{0}; chunk_id < chunk_count; ++chunk_id) {
@@ -186,7 +188,7 @@ bool UccDiscoveryPlugin::_ucc_guaranteed_to_be_still_valid(const std::shared_ptr
       break;
     }
     if (source_chunk->mvcc_data()->max_end_cid != MvccData::MAX_COMMIT_ID &&
-        source_chunk->mvcc_data()->max_end_cid > existing_ucc.last_validated_on())  {
+        source_chunk->mvcc_data()->max_end_cid > existing_ucc.last_validated_on()) {
       guaranteed_to_be_valid = false;
       break;
     }

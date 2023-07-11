@@ -17,18 +17,18 @@
 #include "logical_query_plan/predicate_node.hpp"
 #include "logical_query_plan/stored_table_node.hpp"
 #include "logical_query_plan/union_node.hpp"
+#include "operators/delete.hpp"
 #include "operators/get_table.hpp"
+#include "operators/insert.hpp"
 #include "operators/projection.hpp"
 #include "operators/table_scan.hpp"
+#include "operators/table_wrapper.hpp"
 #include "operators/update.hpp"
 #include "operators/validate.hpp"
 #include "storage/storage_manager.hpp"
 #include "storage/table.hpp"
 #include "utils/load_table.hpp"
 #include "utils/plugin_manager.hpp"
-#include "operators/table_wrapper.hpp"
-#include "operators/delete.hpp"
-#include "operators/insert.hpp"
 
 namespace hyrise {
 
@@ -90,7 +90,8 @@ class UccDiscoveryPluginTest : public BaseTest {
     auto transaction_context = Hyrise::get().transaction_manager.new_transaction_context(AutoCommit::No);
     const auto table_wrapper = std::make_shared<TableWrapper>(table);
     table_wrapper->execute();
-    auto table_scan = create_table_scan(table_wrapper, ColumnID{0}, PredicateCondition::Equals, table->get_row(rowId).at(0));
+    auto table_scan =
+        create_table_scan(table_wrapper, ColumnID{0}, PredicateCondition::Equals, table->get_row(rowId).at(0));
     table_scan->execute();
     auto delete_op = std::make_shared<Delete>(table_scan);
     delete_op->set_transaction_context(transaction_context);
@@ -340,7 +341,7 @@ TEST_P(UccDiscoveryPluginMultiEncodingTest, DeletionOfModifiedUCC) {
   EXPECT_FALSE(constraints_B.contains({{ColumnID{0}}, KeyConstraintType::UNIQUE}));
 }
 
-// TODO: test more edge cases
+// TODO(anybody): test more edge cases
 
 TEST_P(UccDiscoveryPluginMultiEncodingTest, PluginFullRun) {
   // clang-format off
