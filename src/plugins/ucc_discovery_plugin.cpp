@@ -233,103 +233,101 @@ bool UccDiscoveryPlugin::_dictionary_segments_contain_duplicates(const std::shar
 }
 
 template <typename ColumnDataType>
-bool UccDiscoveryPlugin::_uniqueness_holds_across_segments( // TODO: try to clean up this method
+bool UccDiscoveryPlugin::_uniqueness_holds_across_segments(
     const std::shared_ptr<const Table>& table, const std::string table_name, const ColumnID column_id,
     const std::shared_ptr<TransactionContext>& transaction_context) {
-  const auto chunk_count = table->chunk_count();
-  // `distinct_values` collects the segment values from all chunks.
-  auto distinct_values = std::unordered_set<ColumnDataType>{};
+  // `distinct_values_across_segments` collects the segment values from all chunks.
+  auto distinct_values_across_segments = std::unordered_set<ColumnDataType>{};
+  auto unmodified_chunks = std::vector<ChunkID>();
 
-  auto not_modified_chunks = std::vector<ChunkID>();
+  const auto chunk_count = table->chunk_count();
   for (auto chunk_id = ChunkID{0}; chunk_id < chunk_count; ++chunk_id) {
     const auto source_chunk = table->get_chunk(chunk_id);
     if (!source_chunk) {
+      // If this chunk does not exist, we do not need to check it with the validate operator later either.
+      unmodified_chunks.push_back(chunk_id);
       continue;
     }
     const auto source_segment = source_chunk->get_segment(column_id);
     if (!source_segment) {
+      // If this segment does not exist, we do not need to check it with the validate operator later either.
+      unmodified_chunks.push_back(chunk_id);
       continue;
     }
 
     if (source_chunk->invalid_row_count() == 0 && !source_chunk->is_mutable()) {
-      // We know that this segment has not been modified, so there is no need to use the Validate operator indirection
-      // to access its values.
-      not_modified_chunks.push_back(chunk_id);
+      // The set of distinct values across all segments should grow by the number of rows in the segment because,
+      // if it does not, it means some value must have been inserted twice -> duplicate detected.
+      // In this case, the UCC is violated.
+      const auto expected_distinct_value_count = distinct_values_across_segments.size() + source_segment->size();
 
-      const auto expected_distinct_value_count = distinct_values.size() + source_segment->size();
-
+      // If we enter this branch, we know that this segment has not been modified since its creation,
+      // so there is no need to use the validate operator indirection to access its values.
+      // We can do so directly on the segment instead.
       if (const auto& value_segment = std::dynamic_pointer_cast<ValueSegment<ColumnDataType>>(source_segment)) {
         // Directly insert all values.
         const auto& values = value_segment->values();
-        distinct_values.insert(values.cbegin(), values.cend());
+        distinct_values_across_segments.insert(values.cbegin(), values.cend());
       } else if (const auto& dictionary_segment =
                      std::dynamic_pointer_cast<DictionarySegment<ColumnDataType>>(source_segment)) {
         // Directly insert dictionary entries.
         const auto& dictionary = dictionary_segment->dictionary();
-        distinct_values.insert(dictionary->cbegin(), dictionary->cend());
+        distinct_values_across_segments.insert(dictionary->cbegin(), dictionary->cend());
       } else {
-        // Fallback: Iterate the whole segment and decode its values.
-        auto distinct_value_count = distinct_values.size();
-        segment_with_iterators<ColumnDataType>(*source_segment, [&](auto it, const auto end) {
-          while (it != end) {
-            if (it->is_null()) {
-              break;
-            }
-            distinct_values.insert(it->value());
-            if (distinct_value_count + 1 != distinct_values.size()) {
-              break;
-            }
-            ++distinct_value_count;
-            ++it;
-          }
-        });
+        // We will check this segment later when we do the transaction-safe access to potentially modified chunks.
+        continue;
       }
-      // If not all elements have been inserted, there must be a duplicate, so the UCC is violated.
-      if (distinct_values.size() != expected_distinct_value_count) {
+
+      if (distinct_values_across_segments.size() != expected_distinct_value_count) {
         return false;
       }
+
+      // If we managed to check this segment already, we don't need to do it again later using the validate operator.
+      unmodified_chunks.push_back(chunk_id);
     }
   }
 
-  const auto logical_table = std::make_shared<GetTable>(table_name, not_modified_chunks, std::vector<ColumnID>());
+  // Using the validate operator, get a view on the current content of the table, filtering out overwritten and deleted
+  // values.
+  const auto logical_table = std::make_shared<GetTable>(table_name, unmodified_chunks, std::vector<ColumnID>());
   logical_table->execute();
   const auto validate_table_operator = std::make_shared<Validate>(logical_table);
   validate_table_operator->set_transaction_context(transaction_context);
   validate_table_operator->execute();
+  const auto& table_view = validate_table_operator->get_output();
 
-  const auto& validate_table = validate_table_operator->get_output();
-  const auto validated_chunk_count = validate_table->chunk_count();
+  // Check all chunks for duplicates that we haven't yet in the first loop above.
+  // Note that below loop will only contain these chunks, as we have excluded the others when executing the GetTable
+  // operator.
+  const auto validated_chunk_count = table_view->chunk_count();
   for (auto chunk_id = ChunkID{0}; chunk_id < validated_chunk_count; ++chunk_id) {
-    const auto source_chunk = validate_table->get_chunk(chunk_id);
-    if (!source_chunk) {
-      continue;
-    }
+    // No need to do null checks here as we already did so above
+    const auto source_chunk = table_view->get_chunk(chunk_id);
     const auto source_segment = source_chunk->get_segment(column_id);
-    if (!source_segment) {
-      continue;
-    }
 
-    const auto expected_distinct_value_count = distinct_values.size() + source_segment->size();
-    auto distinct_value_count = distinct_values.size();
+    const auto expected_distinct_value_count = distinct_values_across_segments.size() + source_segment->size();
+    auto running_distinct_value_count = distinct_values_across_segments.size();
     segment_with_iterators<ColumnDataType>(*source_segment, [&](auto it, const auto end) {
       while (it != end) {
         if (it->is_null()) {
           break;
         }
-        distinct_values.insert(it->value());
-        if (distinct_value_count + 1 != distinct_values.size()) {
+        distinct_values_across_segments.insert(it->value());
+        if (running_distinct_value_count + 1 != distinct_values_across_segments.size()) {
           break;
         }
-        ++distinct_value_count;
+        ++running_distinct_value_count;
         ++it;
       }
     });
-    // If not all elements have been inserted, there must be a duplicate, so the UCC is violated.
-    if (distinct_values.size() != expected_distinct_value_count) {
+
+    // See explanation on the expected_distinct_value_count in the first loop.
+    if (distinct_values_across_segments.size() != expected_distinct_value_count) {
       return false;
     }
   }
 
+  // Since we did not return earlier, we are now sure that there are no duplicated in the column.
   return true;
 }
 
