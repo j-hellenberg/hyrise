@@ -74,6 +74,8 @@ std::string DependentGroupByReductionRule::name() const {
 
 IsCacheable DependentGroupByReductionRule::_apply_to_plan_without_subqueries(
     const std::shared_ptr<AbstractLQPNode>& lqp_root) const {
+  auto rule_was_applied = false;
+
   visit_lqp(lqp_root, [&](const auto& node) {
     if (node->type != LQPNodeType::Aggregate) {
       return LQPVisitation::VisitInputs;
@@ -99,6 +101,8 @@ IsCacheable DependentGroupByReductionRule::_apply_to_plan_without_subqueries(
     // in this case) has a UCC for { n_nationkey }.
     if (group_by_columns.size() == node->node_expressions.size() &&
         node->left_input()->has_matching_ucc(group_by_columns)) {
+      rule_was_applied = true;
+
       const auto& output_expressions = aggregate_node.output_expressions();
       // Remove the AggregateNode if it does not limit or reorder the output expressions.
       if (expressions_equal(output_expressions, node->left_input()->output_expressions())) {
@@ -185,10 +189,11 @@ IsCacheable DependentGroupByReductionRule::_apply_to_plan_without_subqueries(
       lqp_insert_node(lqp_root, LQPInputSide::Left, projection_node);
     }
 
+    rule_was_applied = true;  //TODO: validate
     return LQPVisitation::VisitInputs;
   });
 
-  return IsCacheable::No;
+  return rule_was_applied ? IsCacheable::No : IsCacheable::Yes;
 }
 
 }  // namespace hyrise

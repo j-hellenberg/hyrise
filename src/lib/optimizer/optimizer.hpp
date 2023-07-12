@@ -17,7 +17,7 @@ class AbstractLQPNode;
 
 // TODO: document this struct
 struct OptimizedLogicalQueryPlan {
-  bool cachable{true};
+  bool cacheable{true};
   std::shared_ptr<AbstractLQPNode> logical_query_plan;
 };
 

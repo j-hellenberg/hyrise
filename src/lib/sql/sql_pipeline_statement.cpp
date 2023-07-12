@@ -148,7 +148,7 @@ const std::shared_ptr<AbstractLQPNode>& SQLPipelineStatement::get_optimized_logi
   _metrics->optimizer_rule_durations = *optimizer_rule_durations;
 
   // Cache newly created plan for the according sql statement
-  if (lqp_cache && _translation_info.cacheable && optimization_result.cachable) {
+  if (lqp_cache && _translation_info.cacheable && optimization_result.cacheable) {
     lqp_cache->set(_sql_string, _optimized_logical_plan);
   }
 
