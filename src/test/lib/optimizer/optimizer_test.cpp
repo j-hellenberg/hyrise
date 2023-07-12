@@ -164,13 +164,14 @@ TEST_F(OptimizerTest, VerifiesResults) {
     }
 
    protected:
-    void _apply_to_plan_without_subqueries(const std::shared_ptr<AbstractLQPNode>& lqp_root) const override {
+    IsCacheable _apply_to_plan_without_subqueries(const std::shared_ptr<AbstractLQPNode>& lqp_root) const override {
       // Change the `b` expression in the projection to `u`, which is not part of the input LQP.
       const auto projection_node = std::dynamic_pointer_cast<ProjectionNode>(lqp_root->left_input());
       if (!projection_node) {
-        return;
+        return IsCacheable::Yes;
       }
       projection_node->node_expressions[0] = _out_of_plan_expression;
+      return IsCacheable::Yes;
     }
 
     std::shared_ptr<AbstractExpression> _out_of_plan_expression;
@@ -198,11 +199,13 @@ TEST_F(OptimizerTest, OptimizesSubqueries) {
     }
 
    protected:
-    void _apply_to_plan_without_subqueries(const std::shared_ptr<AbstractLQPNode>& lqp_root) const override {
+    IsCacheable _apply_to_plan_without_subqueries(const std::shared_ptr<AbstractLQPNode>& lqp_root) const override {
       visit_lqp(lqp_root, [&](const auto& node) {
         nodes.emplace(node);
         return LQPVisitation::VisitInputs;
       });
+
+      return IsCacheable::Yes;
     }
 
     std::unordered_set<std::shared_ptr<AbstractLQPNode>>& nodes;
@@ -287,8 +290,9 @@ TEST_F(OptimizerTest, OptimizesSubqueriesExactlyOnce) {
     size_t& counter;
 
    protected:
-    void _apply_to_plan_without_subqueries(const std::shared_ptr<AbstractLQPNode>& lqp_root) const override {
+    IsCacheable _apply_to_plan_without_subqueries(const std::shared_ptr<AbstractLQPNode>& lqp_root) const override {
       ++counter;
+      return IsCacheable::Yes;
     }
   };
 
@@ -297,7 +301,7 @@ TEST_F(OptimizerTest, OptimizesSubqueriesExactlyOnce) {
   Optimizer optimizer{};
   optimizer.add_rule(std::move(rule));
 
-  const auto optimized_lqp = optimizer.optimize(std::move(lqp));
+  const auto optimized_lqp = optimizer.optimize(std::move(lqp)).logical_query_plan;
   lqp = nullptr;
 
   /**

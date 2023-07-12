@@ -118,7 +118,7 @@ IsCacheable InExpressionRewriteRule::_apply_to_plan_without_subqueries(
     const std::shared_ptr<AbstractLQPNode>& lqp_root) const {
   if (strategy == Strategy::ExpressionEvaluator) {
     // This is the default anyway, i.e., what the SQLTranslator gave us
-    return;
+    return IsCacheable::Yes;
   }
 
   visit_lqp(lqp_root, [&](const auto& sub_node) {
@@ -191,7 +191,7 @@ IsCacheable InExpressionRewriteRule::_apply_to_plan_without_subqueries(
     return LQPVisitation::VisitInputs;
   });
 
-  return::IsCacheable::Yes
+  return IsCacheable::Yes;
 }
 
 }  // namespace hyrise

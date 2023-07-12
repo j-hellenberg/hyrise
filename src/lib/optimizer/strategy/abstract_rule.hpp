@@ -12,6 +12,8 @@ class LogicalPlanRootNode;
 class LQPSubqueryExpression;
 
 enum class IsCacheable : bool { Yes = true, No = false };
+IsCacheable operator&(IsCacheable lhs, IsCacheable rhs);
+IsCacheable& operator&=(IsCacheable& lhs, IsCacheable rhs);
 
 class AbstractRule {
  public:

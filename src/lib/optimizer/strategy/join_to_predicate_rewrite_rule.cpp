@@ -171,6 +171,10 @@ IsCacheable JoinToPredicateRewriteRule::_apply_to_plan_without_subqueries(
     perform_rewrite(join_node, prunable_side, rewrite_predicate);
   }
 
+  if (rewritables.empty()) {
+    return IsCacheable::Yes;
+  }
+
   return IsCacheable::No;
 }
 
