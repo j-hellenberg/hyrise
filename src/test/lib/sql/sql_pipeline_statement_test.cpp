@@ -41,6 +41,7 @@ class SQLPipelineStatementTest : public BaseTest {
  protected:
   void SetUp() override {
     _table_a = load_table("resources/test_data/tbl/int_float.tbl", ChunkOffset{2});
+    _table_a->add_soft_key_constraint({{_table_a->column_id_by_name("a")}, KeyConstraintType::UNIQUE});
     Hyrise::get().storage_manager.add_table("table_a", _table_a);
 
     _table_b = load_table("resources/test_data/tbl/int_float2.tbl", ChunkOffset{2});
@@ -92,6 +93,8 @@ class SQLPipelineStatementTest : public BaseTest {
   std::shared_ptr<SQLPhysicalPlanCache> _pqp_cache;
 
   const std::string _select_query_a = "SELECT * FROM table_a";
+  const std::string _select_query_using_join_to_semi_join_optimization_a =
+      "SELECT table_b.a FROM table_a, table_b WHERE table_a.a = table_b.a";
   const std::string _invalid_sql = "SELECT FROM table_a";
   const std::string _join_query =
       "SELECT table_a.a, table_a.b, table_b.b AS bb FROM table_a, table_b WHERE table_a.a = table_b.a AND table_a.a "
@@ -342,6 +345,20 @@ TEST_F(SQLPipelineStatementTest, GetCachedOptimizedLQPNotValidated) {
   EXPECT_TRUE(_lqp_cache->has(_select_query_a));
   const auto validated_cached_lqp = _lqp_cache->try_get(_select_query_a);
   EXPECT_TRUE(lqp_is_validated(*validated_cached_lqp));
+}
+
+TEST_F(SQLPipelineStatementTest, OptimizedLQPNotCachedWhenNotCacheableOptimizationUsed) {
+  // Expect cache to be empty
+  EXPECT_FALSE(_lqp_cache->has(_select_query_using_join_to_semi_join_optimization_a));
+
+  auto validated_sql_pipeline = SQLPipelineBuilder{_select_query_using_join_to_semi_join_optimization_a}.with_lqp_cache(_lqp_cache).create_pipeline();
+  auto& validated_statement = get_sql_pipeline_statements(validated_sql_pipeline).at(0);
+
+  const auto& validated_lqp = validated_statement->get_optimized_logical_plan();
+  EXPECT_TRUE(lqp_is_validated(validated_lqp));
+
+  // Expect cache to still not contain validated LQP as we ran a query that used a non-cacheable optimization
+  EXPECT_FALSE(_lqp_cache->has(_select_query_using_join_to_semi_join_optimization_a));
 }
 
 TEST_F(SQLPipelineStatementTest, GetOptimizedLQPDoesNotInfluenceUnoptimizedLQP) {
