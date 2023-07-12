@@ -114,7 +114,7 @@ std::shared_ptr<AbstractCardinalityEstimator> InExpressionRewriteRule::_cardinal
   return _cardinality_estimator_internal;
 }
 
-void InExpressionRewriteRule::_apply_to_plan_without_subqueries(
+IsCacheable InExpressionRewriteRule::_apply_to_plan_without_subqueries(
     const std::shared_ptr<AbstractLQPNode>& lqp_root) const {
   if (strategy == Strategy::ExpressionEvaluator) {
     // This is the default anyway, i.e., what the SQLTranslator gave us
@@ -190,6 +190,8 @@ void InExpressionRewriteRule::_apply_to_plan_without_subqueries(
 
     return LQPVisitation::VisitInputs;
   });
+
+  return::IsCacheable::Yes
 }
 
 }  // namespace hyrise

@@ -11,10 +11,12 @@ class AbstractLQPNode;
 class LogicalPlanRootNode;
 class LQPSubqueryExpression;
 
+enum class IsCacheable : bool { Yes = true, No = false };
+
 class AbstractRule {
  public:
   virtual ~AbstractRule() = default;
-
+  // TODO: explain return value
   /**
    * This function applies the concrete Optimizer Rule to an LQP.
    * The default implementation
@@ -38,13 +40,14 @@ class AbstractRule {
    * Rules can define their own strategy of optimizing subquery LQPs by overriding this function. See, for example, the
    * StoredTableColumnAlignmentRule.
    */
-  virtual void apply_to_plan(const std::shared_ptr<LogicalPlanRootNode>& lqp_root) const;
+  virtual IsCacheable apply_to_plan(const std::shared_ptr<LogicalPlanRootNode>& lqp_root) const;
 
   virtual std::string name() const = 0;
 
   std::shared_ptr<AbstractCostEstimator> cost_estimator;
 
  protected:
+  // TODO: explain return value
   /**
    * This function applies the concrete rule to the given plan, but not to its subquery plans.
    *
@@ -54,7 +57,7 @@ class AbstractRule {
    *  would look at each node twice. visit_lqp prevents this by tracking which nodes have already been visited and
    *  avoiding visiting a node twice.
    */
-  virtual void _apply_to_plan_without_subqueries(const std::shared_ptr<AbstractLQPNode>& lqp_root) const = 0;
+  virtual IsCacheable _apply_to_plan_without_subqueries(const std::shared_ptr<AbstractLQPNode>& lqp_root) const = 0;
 };
 
 }  // namespace hyrise

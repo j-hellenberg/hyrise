@@ -154,7 +154,7 @@ std::string JoinToPredicateRewriteRule::name() const {
   return name;
 }
 
-void JoinToPredicateRewriteRule::_apply_to_plan_without_subqueries(
+IsCacheable JoinToPredicateRewriteRule::_apply_to_plan_without_subqueries(
     const std::shared_ptr<AbstractLQPNode>& lqp_root) const {
   // `rewritables finally contains all rewritable join nodes, their unused input side, and the predicates to be used for
   // the rewrites.
@@ -170,6 +170,8 @@ void JoinToPredicateRewriteRule::_apply_to_plan_without_subqueries(
   for (const auto& [join_node, prunable_side, rewrite_predicate] : rewritables) {
     perform_rewrite(join_node, prunable_side, rewrite_predicate);
   }
+
+  return IsCacheable::No;
 }
 
 }  // namespace hyrise
