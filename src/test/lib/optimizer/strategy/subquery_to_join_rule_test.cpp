@@ -1550,7 +1550,7 @@ TEST_F(SubqueryToJoinRuleTest, CheckCacheability) {
   const auto input_lqp =
       PredicateNode::make(in_(a_a, list_(1, 2, 3)),
                           node_a);
-  const auto lqp_result = StrategyBaseTest::apply_rule_with_cache(_rule, input_lqp);
+  const auto lqp_result = StrategyBaseTest::apply_rule_with_cacheability_check(_rule, input_lqp);
   const auto cacheable = lqp_result.cacheable;
   EXPECT_EQ(cacheable, true);
 }

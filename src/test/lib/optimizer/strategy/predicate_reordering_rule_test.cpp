@@ -274,7 +274,7 @@ TEST_F(PredicateReorderingTest, CheckCacheability) {
       PredicateNode::make(greater_than_(a, 60),
                           ValidateNode::make(
                               node));
-  const auto lqp_result = StrategyBaseTest::apply_rule_with_cache(_rule, input_lqp);
+  const auto lqp_result = StrategyBaseTest::apply_rule_with_cacheability_check(_rule, input_lqp);
   const auto cacheable = lqp_result.cacheable;
   EXPECT_EQ(cacheable, true);
 }

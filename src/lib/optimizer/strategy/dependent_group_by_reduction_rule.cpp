@@ -189,7 +189,10 @@ IsCacheable DependentGroupByReductionRule::_apply_to_plan_without_subqueries(
       lqp_insert_node(lqp_root, LQPInputSide::Left, projection_node);
     }
 
-    rule_was_applied = true;  //TODO: validate
+    if (group_by_list_changed) {
+      rule_was_applied = true;  //TODO: validate
+    }
+
     return LQPVisitation::VisitInputs;
   });
 

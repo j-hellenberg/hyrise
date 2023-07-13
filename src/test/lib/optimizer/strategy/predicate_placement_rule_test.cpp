@@ -927,7 +927,7 @@ TEST_F(PredicatePlacementRuleTest, CheckCacheability) {
                                                  JoinNode::make(JoinMode::Left, equals_(_d_a, _e_a),
                                                                 _stored_table_d,
                                                                 _stored_table_e));
-  const auto lqp_result = StrategyBaseTest::apply_rule_with_cache(_rule, input_lqp);
+  const auto lqp_result = StrategyBaseTest::apply_rule_with_cacheability_check(_rule, input_lqp);
   const auto cacheable = lqp_result.cacheable;
   EXPECT_EQ(cacheable, true);
 }

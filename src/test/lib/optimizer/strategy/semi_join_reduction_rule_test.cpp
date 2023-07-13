@@ -228,7 +228,7 @@ TEST_F(SemiJoinReductionRuleTest, CheckCacheability) {
       JoinNode::make(JoinMode::AntiNullAsTrue, equals_(_a_a, _b_a),
                      _node_a,
                      _node_b);
-  const auto lqp_result = StrategyBaseTest::apply_rule_with_cache(_rule, input_lqp);
+  const auto lqp_result = StrategyBaseTest::apply_rule_with_cacheability_check(_rule, input_lqp);
   const auto cacheable = lqp_result.cacheable;
   EXPECT_EQ(cacheable, true);
 }

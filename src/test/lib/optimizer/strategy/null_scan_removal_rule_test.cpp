@@ -104,7 +104,7 @@ TEST_F(NullScanRemovalRuleTest, TableColumnDefinitionIsNotNullable) {
 
 TEST_F(NullScanRemovalRuleTest, CheckCacheability) {
   const auto input_lqp = PredicateNode::make(is_not_null_(table_node_column), table_node);
-  const auto lqp_result = StrategyBaseTest::apply_rule_with_cache(rule, input_lqp);
+  const auto lqp_result = StrategyBaseTest::apply_rule_with_cacheability_check(rule, input_lqp);
   const auto cacheable = lqp_result.cacheable;
   EXPECT_EQ(cacheable, true);
 }

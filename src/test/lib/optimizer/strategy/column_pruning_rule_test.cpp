@@ -489,7 +489,7 @@ TEST_F(ColumnPruningRuleTest, CheckCacheability) {
                        PredicateNode::make(greater_than_(a, 5),
                                            node_abc));
 
-  const auto lqp_result  = apply_rule_with_cache(rule, lqp);
+  const auto lqp_result  = apply_rule_with_cacheability_check(rule, lqp);
   const auto cacheable = lqp_result.cacheable;
   EXPECT_EQ(cacheable, true);
 }

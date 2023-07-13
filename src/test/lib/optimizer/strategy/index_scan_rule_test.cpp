@@ -182,7 +182,7 @@ TEST_F(IndexScanRuleTest, CheckCacheability) {
   predicate_node_0->set_left_input(stored_table_node);
 
   EXPECT_EQ(predicate_node_0->scan_type, ScanType::TableScan);
-  const auto lqp_result = StrategyBaseTest::apply_rule_with_cache(rule, predicate_node_0);
+  const auto lqp_result = StrategyBaseTest::apply_rule_with_cacheability_check(rule, predicate_node_0);
   const auto cacheable = lqp_result.cacheable;
   EXPECT_EQ(cacheable, true);
 }

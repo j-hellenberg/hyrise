@@ -110,7 +110,7 @@ TEST_F(StoredTableColumnAlignmentRuleTest, CoverSubqueries) {
 }
 
 TEST_F(StoredTableColumnAlignmentRuleTest, CheckCacheability) {
-  const auto lqp_result =  apply_rule_with_cache(_rule, _union_node);
+  const auto lqp_result = apply_rule_with_cacheability_check(_rule, _union_node);
   const auto cacheable = lqp_result.cacheable;
   EXPECT_EQ(cacheable, true);
 }

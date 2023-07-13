@@ -86,8 +86,10 @@ TEST_F(DependentGroupByReductionRuleTest, SimpleCases) {
     const auto lqp = PredicateNode::make(equals_(column_a_0, 17), stored_table_node_a);
 
     const auto expected_lqp = lqp->deep_copy();
-    const auto actual_lqp = apply_rule(rule, lqp);
-    EXPECT_LQP_EQ(actual_lqp, expected_lqp);
+    const auto optimization_result = apply_rule_with_cacheability_check(rule, lqp);
+
+    EXPECT_TRUE(optimization_result.cacheable);
+    EXPECT_LQP_EQ(optimization_result.logical_query_plan, expected_lqp);
   }
 
   // Early out for LQP where table does not have a unique column combination.
@@ -96,8 +98,10 @@ TEST_F(DependentGroupByReductionRuleTest, SimpleCases) {
         AggregateNode::make(expression_vector(column_d_0), expression_vector(sum_(column_d_0)), stored_table_node_d);
 
     const auto expected_lqp = lqp->deep_copy();
-    const auto actual_lqp = apply_rule(rule, lqp);
-    EXPECT_LQP_EQ(actual_lqp, expected_lqp);
+    const auto optimization_result = apply_rule_with_cacheability_check(rule, lqp);
+
+    EXPECT_TRUE(optimization_result.cacheable);
+    EXPECT_LQP_EQ(optimization_result.logical_query_plan, expected_lqp);
   }
 }
 
@@ -115,8 +119,10 @@ TEST_F(DependentGroupByReductionRuleTest, SingleKeyReduction) {
         stored_table_node_a));
     // clang-format on
 
-    const auto actual_lqp = apply_rule(rule, lqp);
-    EXPECT_LQP_EQ(actual_lqp, expected_lqp);
+    const auto optimization_result = apply_rule_with_cacheability_check(rule, lqp);
+
+    EXPECT_FALSE(optimization_result.cacheable);
+    EXPECT_LQP_EQ(optimization_result.logical_query_plan, expected_lqp);
   }
   {
     // clang-format off
@@ -130,9 +136,10 @@ TEST_F(DependentGroupByReductionRuleTest, SingleKeyReduction) {
         stored_table_node_a));
     // clang-format on
 
-    const auto actual_lqp = apply_rule(rule, lqp);
+    const auto optimization_result = apply_rule_with_cacheability_check(rule, lqp);
 
-    EXPECT_LQP_EQ(actual_lqp, expected_lqp);
+    EXPECT_FALSE(optimization_result.cacheable);
+    EXPECT_LQP_EQ(optimization_result.logical_query_plan, expected_lqp);
   }
 }
 
@@ -145,9 +152,10 @@ TEST_F(DependentGroupByReductionRuleTest, IncompleteKey) {
   // clang-format on
 
   const auto expected_lqp = lqp->deep_copy();
-  const auto actual_lqp = apply_rule(rule, lqp);
+  const auto optimization_result = apply_rule_with_cacheability_check(rule, lqp);
 
-  EXPECT_LQP_EQ(actual_lqp, expected_lqp);
+  EXPECT_TRUE(optimization_result.cacheable);
+  EXPECT_LQP_EQ(optimization_result.logical_query_plan, expected_lqp);
 }
 
 // Test that a group by with the full (multi-column) UCC is not altered.
@@ -159,9 +167,10 @@ TEST_F(DependentGroupByReductionRuleTest, FullKeyGroupBy) {
   // clang-format on
 
   const auto expected_lqp = lqp->deep_copy();
-  const auto actual_lqp = apply_rule(rule, lqp);
+  const auto optimization_result = apply_rule_with_cacheability_check(rule, lqp);
 
-  EXPECT_LQP_EQ(actual_lqp, expected_lqp);
+  EXPECT_TRUE(optimization_result.cacheable);
+  EXPECT_LQP_EQ(optimization_result.logical_query_plan, expected_lqp);
 }
 
 // Test adaption of multi-column but inconsecutive column order of the primary key columns (table_c with UCC {0,2}).
@@ -177,9 +186,10 @@ TEST_F(DependentGroupByReductionRuleTest, FullInconsecutiveKeyGroupBy) {
       stored_table_node_c));
   // clang-format on
 
-  const auto actual_lqp = apply_rule(rule, lqp);
+  const auto optimization_result = apply_rule_with_cacheability_check(rule, lqp);
 
-  EXPECT_LQP_EQ(actual_lqp, expected_lqp);
+  EXPECT_FALSE(optimization_result.cacheable);
+  EXPECT_LQP_EQ(optimization_result.logical_query_plan, expected_lqp);
 }
 
 // Test whether we remove the correct columns after joining (one column of a can be moved, none of b). No projection
@@ -201,9 +211,10 @@ TEST_F(DependentGroupByReductionRuleTest, JoinSingleKeyPrimaryKey) {
         stored_table_node_b)));
   // clang-format on
 
-  const auto actual_lqp = apply_rule(rule, lqp);
+  const auto optimization_result = apply_rule_with_cacheability_check(rule, lqp);
 
-  EXPECT_LQP_EQ(actual_lqp, expected_lqp);
+  EXPECT_FALSE(optimization_result.cacheable);
+  EXPECT_LQP_EQ(optimization_result.logical_query_plan, expected_lqp);
 }
 
 // Test that the plan stays the same (no alias, no projection) for a table with a primary key but no removable columns.
@@ -215,9 +226,10 @@ TEST_F(DependentGroupByReductionRuleTest, AggregateButNoChanges) {
   // clang-format on
 
   const auto expected_lqp = lqp->deep_copy();
-  const auto actual_lqp = apply_rule(rule, lqp);
+  const auto optimization_result = apply_rule_with_cacheability_check(rule, lqp);
 
-  EXPECT_LQP_EQ(actual_lqp, expected_lqp);
+  EXPECT_TRUE(optimization_result.cacheable);
+  EXPECT_LQP_EQ(optimization_result.logical_query_plan, expected_lqp);
 }
 
 // A simple aggregate follows an optimized aggregate, column order of root node should not change. Thus, no projection.
@@ -234,9 +246,10 @@ TEST_F(DependentGroupByReductionRuleTest, SimpleAggregateFollowsAdaptedAggregate
       stored_table_node_a));
   // clang-format on
 
-  const auto actual_lqp = apply_rule(rule, lqp);
+  const auto optimization_result = apply_rule_with_cacheability_check(rule, lqp);
 
-  EXPECT_LQP_EQ(actual_lqp, expected_lqp);
+  EXPECT_FALSE(optimization_result.cacheable);
+  EXPECT_LQP_EQ(optimization_result.logical_query_plan, expected_lqp);
 }
 
 // A sort follows an optimized aggregate. Operator following the aggregate does not change the column order itself, but
@@ -255,9 +268,10 @@ TEST_F(DependentGroupByReductionRuleTest, SortFollowsAggregate) {
         stored_table_node_a)));  // NOLINT
   // clang-format on
 
-  const auto actual_lqp = apply_rule(rule, lqp);
+  const auto optimization_result = apply_rule_with_cacheability_check(rule, lqp);
 
-  EXPECT_LQP_EQ(actual_lqp, expected_lqp);
+  EXPECT_FALSE(optimization_result.cacheable);
+  EXPECT_LQP_EQ(optimization_result.logical_query_plan, expected_lqp);
 }
 
 // When a primary key column is nullable after an outer join, check that we do not modify the aggregate.
@@ -271,9 +285,10 @@ TEST_F(DependentGroupByReductionRuleTest, NoAdaptionForNullableColumns) {
   // clang-format on
 
   const auto expected_lqp = lqp->deep_copy();
-  const auto actual_lqp = apply_rule(rule, lqp);
+  const auto optimization_result = apply_rule_with_cacheability_check(rule, lqp);
 
-  EXPECT_LQP_EQ(actual_lqp, expected_lqp);
+  EXPECT_TRUE(optimization_result.cacheable);
+  EXPECT_LQP_EQ(optimization_result.logical_query_plan, expected_lqp);
 }
 
 // Check that we reduce using the shortest UCCs (in terms of the number of columns).
@@ -289,9 +304,10 @@ TEST_F(DependentGroupByReductionRuleTest, ShortConstraintsFirst) {
       stored_table_node_e));
   // clang-format on
 
-  const auto actual_lqp = apply_rule(rule, lqp);
+  const auto optimization_result = apply_rule_with_cacheability_check(rule, lqp);
 
-  EXPECT_LQP_EQ(actual_lqp, expected_lqp);
+  EXPECT_FALSE(optimization_result.cacheable);
+  EXPECT_LQP_EQ(optimization_result.logical_query_plan, expected_lqp);
 }
 
 // Check whether we can reduce the group-by list twice.
@@ -320,9 +336,10 @@ TEST_F(DependentGroupByReductionRuleTest, MultiKeyReduction) {
       mock_node));
   // clang-format on
 
-  const auto actual_lqp = apply_rule(rule, lqp);
+  const auto optimization_result = apply_rule_with_cacheability_check(rule, lqp);
 
-  EXPECT_LQP_EQ(actual_lqp, expected_lqp);
+  EXPECT_FALSE(optimization_result.cacheable);
+  EXPECT_LQP_EQ(optimization_result.logical_query_plan, expected_lqp);
 }
 
 TEST_F(DependentGroupByReductionRuleTest, RemoveSuperfluousDistinctAggregateSimple) {
@@ -342,8 +359,10 @@ TEST_F(DependentGroupByReductionRuleTest, RemoveSuperfluousDistinctAggregateSimp
     stored_table_node_a->set_pruned_column_ids({ColumnID{1}, ColumnID{2}, ColumnID{3}});
 
     const auto expected_lqp = stored_table_node_a->deep_copy();
-    const auto actual_lqp = apply_rule(rule, lqp);
-    EXPECT_LQP_EQ(actual_lqp, expected_lqp);
+    const auto optimization_result = apply_rule_with_cacheability_check(rule, lqp);
+
+    EXPECT_FALSE(optimization_result.cacheable);
+    EXPECT_LQP_EQ(optimization_result.logical_query_plan, expected_lqp);
   }
 
   // More advanced case: Column is unique due to another operation (e.g., we grouped by it before).
@@ -360,8 +379,10 @@ TEST_F(DependentGroupByReductionRuleTest, RemoveSuperfluousDistinctAggregateSimp
       stored_table_node_a);
     // clang-format on
 
-    const auto actual_lqp = apply_rule(rule, lqp);
-    EXPECT_LQP_EQ(actual_lqp, expected_lqp);
+    const auto optimization_result = apply_rule_with_cacheability_check(rule, lqp);
+
+    EXPECT_FALSE(optimization_result.cacheable);
+    EXPECT_LQP_EQ(optimization_result.logical_query_plan, expected_lqp);
   }
 }
 
@@ -379,8 +400,10 @@ TEST_F(DependentGroupByReductionRuleTest, RemoveSuperfluousDistinctAggregateProj
       stored_table_node_a);
     // clang-format on
 
-    const auto actual_lqp = apply_rule(rule, lqp);
-    EXPECT_LQP_EQ(actual_lqp, expected_lqp);
+    const auto optimization_result = apply_rule_with_cacheability_check(rule, lqp);
+
+    EXPECT_FALSE(optimization_result.cacheable);
+    EXPECT_LQP_EQ(optimization_result.logical_query_plan, expected_lqp);
   }
 
   // All columns are part of the grouped columns, but the order changes. Thus, we need a ProjectionNode that changes the
@@ -396,8 +419,10 @@ TEST_F(DependentGroupByReductionRuleTest, RemoveSuperfluousDistinctAggregateProj
       stored_table_node_e);
     // clang-format on
 
-    const auto actual_lqp = apply_rule(rule, lqp);
-    EXPECT_LQP_EQ(actual_lqp, expected_lqp);
+    const auto optimization_result = apply_rule_with_cacheability_check(rule, lqp);
+
+    EXPECT_FALSE(optimization_result.cacheable);
+    EXPECT_LQP_EQ(optimization_result.logical_query_plan, expected_lqp);
   }
 }
 
@@ -412,8 +437,10 @@ TEST_F(DependentGroupByReductionRuleTest, DoNotRemoveRequiredDistinctAggregate) 
     // clang-format on
 
     const auto expected_lqp = lqp->deep_copy();
-    const auto actual_lqp = apply_rule(rule, lqp);
-    EXPECT_LQP_EQ(actual_lqp, expected_lqp);
+    const auto optimization_result = apply_rule_with_cacheability_check(rule, lqp);
+
+    EXPECT_TRUE(optimization_result.cacheable);
+    EXPECT_LQP_EQ(optimization_result.logical_query_plan, expected_lqp);
   }
 
   // Do not remove the AggregateNode when the grouped column is unique but there are further aggregates.
@@ -425,8 +452,10 @@ TEST_F(DependentGroupByReductionRuleTest, DoNotRemoveRequiredDistinctAggregate) 
     // clang-format on
 
     const auto expected_lqp = lqp->deep_copy();
-    const auto actual_lqp = apply_rule(rule, lqp);
-    EXPECT_LQP_EQ(actual_lqp, expected_lqp);
+    const auto optimization_result = apply_rule_with_cacheability_check(rule, lqp);
+
+    EXPECT_TRUE(optimization_result.cacheable);
+    EXPECT_LQP_EQ(optimization_result.logical_query_plan, expected_lqp);
   }
 }
 

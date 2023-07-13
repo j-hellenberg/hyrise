@@ -78,14 +78,17 @@ TEST_P(JoinToPredicateRewriteRuleJoinModeTest, PerformRewrite) {
   // clang-format on
 
   const auto annotated_lqp = apply_rule(std::make_shared<ColumnPruningRule>(), lqp->deep_copy());
-  const auto actual_lqp = apply_rule(rule, annotated_lqp);
+  const auto optimization_result = apply_rule_with_cacheability_check(rule, annotated_lqp);
+
   expected_lqp = std::static_pointer_cast<ProjectionNode>(
       apply_rule(std::make_shared<ColumnPruningRule>(), expected_lqp->deep_copy()));
 
   if (GetParam() == JoinMode::Inner || GetParam() == JoinMode::Semi) {
-    EXPECT_LQP_EQ(actual_lqp, expected_lqp);
+    EXPECT_FALSE(optimization_result.cacheable);
+    EXPECT_LQP_EQ(optimization_result.logical_query_plan, expected_lqp);
   } else {
-    EXPECT_LQP_EQ(actual_lqp, annotated_lqp->deep_copy());
+    EXPECT_TRUE(optimization_result.cacheable);
+    EXPECT_LQP_EQ(optimization_result.logical_query_plan, annotated_lqp->deep_copy());
   }
 }
 
@@ -104,8 +107,11 @@ TEST_F(JoinToPredicateRewriteRuleTest, MissingPredicate) {
   // clang-format on
 
   const auto annotated_lqp = apply_rule(std::make_shared<ColumnPruningRule>(), lqp);
-  const auto actual_lqp = apply_rule(rule, annotated_lqp);
-  EXPECT_LQP_EQ(actual_lqp, lqp->deep_copy());
+  const auto expected_lqp = annotated_lqp->deep_copy();
+  const auto optimization_result = apply_rule_with_cacheability_check(rule, annotated_lqp);
+
+  EXPECT_TRUE(optimization_result.cacheable);
+  EXPECT_LQP_EQ(optimization_result.logical_query_plan, expected_lqp);
 }
 
 TEST_F(JoinToPredicateRewriteRuleTest, MissingUccOnPredicateColumn) {
@@ -123,8 +129,11 @@ TEST_F(JoinToPredicateRewriteRuleTest, MissingUccOnPredicateColumn) {
   // clang-format on
 
   const auto annotated_lqp = apply_rule(std::make_shared<ColumnPruningRule>(), lqp);
-  const auto actual_lqp = apply_rule(rule, annotated_lqp);
-  EXPECT_LQP_EQ(actual_lqp, lqp->deep_copy());
+  const auto expected_lqp = annotated_lqp->deep_copy();
+  const auto optimization_result = apply_rule_with_cacheability_check(rule, annotated_lqp);
+
+  EXPECT_TRUE(optimization_result.cacheable);
+  EXPECT_LQP_EQ(optimization_result.logical_query_plan, expected_lqp);
 }
 
 TEST_F(JoinToPredicateRewriteRuleTest, MissingUccOnJoinColumn) {
@@ -142,8 +151,11 @@ TEST_F(JoinToPredicateRewriteRuleTest, MissingUccOnJoinColumn) {
   // clang-format on
 
   const auto annotated_lqp = apply_rule(std::make_shared<ColumnPruningRule>(), lqp);
-  const auto actual_lqp = apply_rule(rule, annotated_lqp);
-  EXPECT_LQP_EQ(actual_lqp, lqp->deep_copy());
+  const auto expected_lqp = annotated_lqp->deep_copy();
+  const auto optimization_result = apply_rule_with_cacheability_check(rule, annotated_lqp);
+
+  EXPECT_TRUE(optimization_result.cacheable);
+  EXPECT_LQP_EQ(optimization_result.logical_query_plan, expected_lqp);
 }
 
 TEST_F(JoinToPredicateRewriteRuleTest, NoUnusedJoinSide) {
@@ -162,8 +174,11 @@ TEST_F(JoinToPredicateRewriteRuleTest, NoUnusedJoinSide) {
   // clang-format on
 
   const auto annotated_lqp = apply_rule(std::make_shared<ColumnPruningRule>(), lqp);
-  const auto actual_lqp = apply_rule(rule, annotated_lqp);
-  EXPECT_LQP_EQ(actual_lqp, lqp->deep_copy());
+  const auto expected_lqp = annotated_lqp->deep_copy();
+  const auto optimization_result = apply_rule_with_cacheability_check(rule, annotated_lqp);
+
+  EXPECT_TRUE(optimization_result.cacheable);
+  EXPECT_LQP_EQ(optimization_result.logical_query_plan, expected_lqp);
 }
 
 TEST_F(JoinToPredicateRewriteRuleTest, Union) {
@@ -183,8 +198,11 @@ TEST_F(JoinToPredicateRewriteRuleTest, Union) {
   // clang-format on
 
   const auto annotated_lqp = apply_rule(std::make_shared<ColumnPruningRule>(), lqp);
-  const auto actual_lqp = apply_rule(rule, annotated_lqp);
-  EXPECT_LQP_EQ(actual_lqp, lqp->deep_copy());
+  const auto expected_lqp = annotated_lqp->deep_copy();
+  const auto optimization_result = apply_rule_with_cacheability_check(rule, annotated_lqp);
+
+  EXPECT_TRUE(optimization_result.cacheable);
+  EXPECT_LQP_EQ(optimization_result.logical_query_plan, expected_lqp);
 }
 
 }  // namespace hyrise

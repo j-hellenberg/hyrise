@@ -15,13 +15,11 @@ namespace hyrise {
 
 std::shared_ptr<AbstractLQPNode> StrategyBaseTest::apply_rule(const std::shared_ptr<AbstractRule>& rule,
                                                               const std::shared_ptr<AbstractLQPNode>& input) {
-  const auto lqp_result = apply_rule_with_cache(rule, input);
-  const auto lqp = lqp_result.logical_query_plan;
-
-  return lqp;
+  const auto lqp_result = apply_rule_with_cacheability_check(rule, input);
+  return lqp_result.logical_query_plan;
 }
 
-OptimizedLogicalQueryPlan StrategyBaseTest::apply_rule_with_cache(const std::shared_ptr<AbstractRule>& rule,
+OptimizedLogicalQueryPlan StrategyBaseTest::apply_rule_with_cacheability_check(const std::shared_ptr<AbstractRule>& rule,
                                                                   const std::shared_ptr<AbstractLQPNode>& input) {
   // Add explicit root node
   const auto root_node = LogicalPlanRootNode::make();
