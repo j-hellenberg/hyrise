@@ -79,17 +79,14 @@ TEST_F(JoinOrderingRuleTest, MultipleJoinGraphs) {
 }
 
 TEST_F(JoinOrderingRuleTest, CheckCacheability) {
-  const auto input_lqp =
-      AggregateNode::make(expression_vector(a_a), expression_vector(),
-                          PredicateNode::make(equals_(a_a, b_b),
-                                              JoinNode::make(JoinMode::Cross,
-                                                             node_a,
-                                                             JoinNode::make(JoinMode::Left, equals_(b_b, d_d),
-                                                                            node_b,
-                                                                            PredicateNode::make(equals_(d_d, c_c),
-                                                                                                JoinNode::make(JoinMode::Cross,
-                                                                                                               node_d,
-                                                                                                               node_c))))));
+  const auto input_lqp = AggregateNode::make(
+      expression_vector(a_a), expression_vector(),
+      PredicateNode::make(
+          equals_(a_a, b_b),
+          JoinNode::make(JoinMode::Cross, node_a,
+                         JoinNode::make(JoinMode::Left, equals_(b_b, d_d), node_b,
+                                        PredicateNode::make(equals_(d_d, c_c),
+                                                            JoinNode::make(JoinMode::Cross, node_d, node_c))))));
 
   const auto lqp_result = StrategyBaseTest::apply_rule_with_cacheability_check(rule, input_lqp);
   const auto cacheable = lqp_result.cacheable;

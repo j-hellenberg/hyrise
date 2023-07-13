@@ -16,7 +16,8 @@ std::string JoinToSemiJoinRule::name() const {
   return name;
 }
 
-IsCacheable JoinToSemiJoinRule::_apply_to_plan_without_subqueries(const std::shared_ptr<AbstractLQPNode>& lqp_root) const {
+IsCacheable JoinToSemiJoinRule::_apply_to_plan_without_subqueries(
+    const std::shared_ptr<AbstractLQPNode>& lqp_root) const {
   auto rule_was_applied = false;
 
   visit_lqp(lqp_root, [&](const auto& node) {

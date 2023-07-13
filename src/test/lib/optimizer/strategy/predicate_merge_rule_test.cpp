@@ -393,9 +393,7 @@ TEST_F(PredicateMergeRuleTest, NoRewriteDifferentSetOperationMode) {
 }
 
 TEST_F(PredicateMergeRuleTest, CheckCacheability) {
-  const auto input_lqp =
-      PredicateNode::make(less_than_(a_a, 10),
-                          node_a);
+  const auto input_lqp = PredicateNode::make(less_than_(a_a, 10), node_a);
   const auto lqp_result = StrategyBaseTest::apply_rule_with_cacheability_check(rule, input_lqp);
   const auto cacheable = lqp_result.cacheable;
   EXPECT_EQ(cacheable, true);

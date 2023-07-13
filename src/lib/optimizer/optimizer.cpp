@@ -296,7 +296,6 @@ OptimizedLogicalQueryPlan Optimizer::optimize(
   auto optimized_node = root_node->left_input();
   root_node->set_left_input(nullptr);
 
-
   return {static_cast<bool>(cachable), optimized_node};
 }
 

@@ -54,7 +54,8 @@ std::string BetweenCompositionRule::name() const {
  *   b) The BetweenCompositionRule searches for arbitrary PredicateNodes that are directly linked. Therefore,
  *      predicate chains can start and end in the midst of LQPs.
  */
-IsCacheable BetweenCompositionRule::_apply_to_plan_without_subqueries(const std::shared_ptr<AbstractLQPNode>& lqp_root) const {
+IsCacheable BetweenCompositionRule::_apply_to_plan_without_subqueries(
+    const std::shared_ptr<AbstractLQPNode>& lqp_root) const {
   std::unordered_set<std::shared_ptr<AbstractLQPNode>> visited_nodes;
   std::vector<PredicateChain> predicate_chains;
 

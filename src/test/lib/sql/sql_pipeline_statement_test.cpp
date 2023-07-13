@@ -351,7 +351,9 @@ TEST_F(SQLPipelineStatementTest, OptimizedLQPNotCachedWhenNotCacheableOptimizati
   // Expect cache to be empty
   EXPECT_FALSE(_lqp_cache->has(_select_query_using_join_to_semi_join_optimization_a));
 
-  auto validated_sql_pipeline = SQLPipelineBuilder{_select_query_using_join_to_semi_join_optimization_a}.with_lqp_cache(_lqp_cache).create_pipeline();
+  auto validated_sql_pipeline = SQLPipelineBuilder{_select_query_using_join_to_semi_join_optimization_a}
+                                    .with_lqp_cache(_lqp_cache)
+                                    .create_pipeline();
   auto& validated_statement = get_sql_pipeline_statements(validated_sql_pipeline).at(0);
 
   const auto& validated_lqp = validated_statement->get_optimized_logical_plan();

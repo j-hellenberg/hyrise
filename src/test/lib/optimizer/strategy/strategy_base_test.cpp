@@ -19,8 +19,8 @@ std::shared_ptr<AbstractLQPNode> StrategyBaseTest::apply_rule(const std::shared_
   return lqp_result.logical_query_plan;
 }
 
-OptimizedLogicalQueryPlan StrategyBaseTest::apply_rule_with_cacheability_check(const std::shared_ptr<AbstractRule>& rule,
-                                                                  const std::shared_ptr<AbstractLQPNode>& input) {
+OptimizedLogicalQueryPlan StrategyBaseTest::apply_rule_with_cacheability_check(
+    const std::shared_ptr<AbstractRule>& rule, const std::shared_ptr<AbstractLQPNode>& input) {
   // Add explicit root node
   const auto root_node = LogicalPlanRootNode::make();
   root_node->set_left_input(input);

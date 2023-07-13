@@ -187,5 +187,4 @@ TEST_F(IndexScanRuleTest, CheckCacheability) {
   EXPECT_EQ(cacheable, true);
 }
 
-
 }  // namespace hyrise

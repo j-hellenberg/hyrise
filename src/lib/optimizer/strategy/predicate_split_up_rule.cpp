@@ -80,7 +80,8 @@ std::string PredicateSplitUpRule::name() const {
   return name;
 }
 
-IsCacheable PredicateSplitUpRule::_apply_to_plan_without_subqueries(const std::shared_ptr<AbstractLQPNode>& lqp_root) const {
+IsCacheable PredicateSplitUpRule::_apply_to_plan_without_subqueries(
+    const std::shared_ptr<AbstractLQPNode>& lqp_root) const {
   Assert(lqp_root->type == LQPNodeType::Root, "PredicateSplitUpRule needs root to hold onto");
 
   auto predicate_nodes = std::vector<std::shared_ptr<PredicateNode>>{};

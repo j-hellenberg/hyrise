@@ -340,10 +340,8 @@ TEST_F(OptimizerTest, OptimizesSubqueriesExactlyOnce) {
 TEST_F(OptimizerTest, CheckTrueCacheablility) {
   auto optimizer = Optimizer::create_default_optimizer();
 
-  auto lqp =
-      ProjectionNode::make(expression_vector(add_(b, subquery_a)),
-                           PredicateNode::make(greater_than_(a, subquery_b),
-                                               node_a));
+  auto lqp = ProjectionNode::make(expression_vector(add_(b, subquery_a)),
+                                  PredicateNode::make(greater_than_(a, subquery_b), node_a));
   auto optimize_results = optimizer->optimize(std::move(lqp));
   EXPECT_EQ(optimize_results.cacheable, true);
 }
