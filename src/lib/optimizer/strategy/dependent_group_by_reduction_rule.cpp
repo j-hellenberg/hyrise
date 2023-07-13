@@ -190,7 +190,7 @@ IsCacheable DependentGroupByReductionRule::_apply_to_plan_without_subqueries(
     }
 
     if (group_by_list_changed) {
-      rule_was_applied = true;  //TODO: validate
+      rule_was_applied = true;
     }
 
     return LQPVisitation::VisitInputs;

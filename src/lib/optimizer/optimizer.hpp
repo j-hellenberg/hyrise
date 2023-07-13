@@ -15,7 +15,10 @@ struct OptimizerRuleMetrics {
 class AbstractRule;
 class AbstractLQPNode;
 
-// TODO: document this struct
+/**
+ * Holds the result of optimizing an LQP, which consists of the optimized LQP and the information on whether it can be
+ * cached.
+ */
 struct OptimizedLogicalQueryPlan {
   bool cacheable{true};
   std::shared_ptr<AbstractLQPNode> logical_query_plan;
