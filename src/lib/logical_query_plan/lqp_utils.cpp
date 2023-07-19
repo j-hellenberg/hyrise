@@ -438,7 +438,7 @@ ExpressionUnorderedSet find_column_expressions(const AbstractLQPNode& lqp_node, 
 
   const auto& output_expressions = lqp_node.output_expressions();
   auto column_expressions = ExpressionUnorderedSet{};
-  column_expressions.reserve(column_ids.size());unique_column_combination
+  column_expressions.reserve(column_ids.size());
 
   for (const auto& output_expression : output_expressions) {
     const auto column_expression = dynamic_pointer_cast<LQPColumnExpression>(output_expression);
