@@ -2,12 +2,8 @@
 
 namespace hyrise {
 
-UniqueColumnCombination::UniqueColumnCombination(ExpressionUnorderedSet init_expressions)
-    : UniqueColumnCombination(std::move(init_expressions), INVALID_COMMIT_ID) {}
-
-UniqueColumnCombination::UniqueColumnCombination(hyrise::ExpressionUnorderedSet init_expressions,
-                                                 hyrise::CommitID last_validated_on)
-    : expressions(std::move(init_expressions)), last_validated_on(last_validated_on) {
+UniqueColumnCombination::UniqueColumnCombination(hyrise::ExpressionUnorderedSet init_expressions)
+    : expressions(std::move(init_expressions)) {
   Assert(!expressions.empty(), "UniqueColumnCombination cannot be empty.");
 }
 

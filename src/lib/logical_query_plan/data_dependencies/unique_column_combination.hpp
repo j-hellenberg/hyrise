@@ -15,14 +15,12 @@ namespace hyrise {
  */
 struct UniqueColumnCombination final {
   explicit UniqueColumnCombination(ExpressionUnorderedSet init_expressions);
-  explicit UniqueColumnCombination(ExpressionUnorderedSet init_expressions, CommitID last_validated_on);
 
   bool operator==(const UniqueColumnCombination& rhs) const;
   bool operator!=(const UniqueColumnCombination& rhs) const;
   size_t hash() const;
 
   ExpressionUnorderedSet expressions;
-  CommitID last_validated_on;
 };
 
 std::ostream& operator<<(std::ostream& stream, const UniqueColumnCombination& ucc);
