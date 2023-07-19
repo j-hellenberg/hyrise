@@ -401,6 +401,10 @@ void Table::create_chunk_index(const std::vector<ColumnID>& column_ids, const st
   _chunk_indexes_statistics.emplace_back(ChunkIndexStatistics{column_ids, name, chunk_index_type});
 }
 
+const TableKeyConstraints& Table::soft_key_constraints() const {
+  return _table_key_constraints;
+}
+
 void Table::add_soft_key_constraint(const TableKeyConstraint& table_key_constraint) {
   Assert(_type == TableType::Data, "TableKeyConstraints are not tracked for reference tables across the PQP.");
 
@@ -432,12 +436,29 @@ void Table::add_soft_key_constraint(const TableKeyConstraint& table_key_constrai
   _table_key_constraints.insert(table_key_constraint);
 }
 
-const TableKeyConstraints& Table::soft_key_constraints() const {
-  return _table_key_constraints;
-}
-
 void Table::delete_key_constraint(const TableKeyConstraint& constraint) {
   _table_key_constraints.erase(constraint);
+}
+
+bool Table::constraint_guaranteed_to_be_valid(const TableKeyConstraint& table_key_constraint) const {
+  if (!table_key_constraint.can_become_invalid()) {
+    return true;
+  }
+
+  const auto chunk_count = this->chunk_count();
+  for (auto chunk_id = ChunkID{0}; chunk_id < chunk_count; ++chunk_id) {
+    const auto source_chunk = get_chunk(chunk_id);
+    if (source_chunk->mvcc_data()->max_begin_cid != MvccData::MAX_COMMIT_ID &&
+        source_chunk->mvcc_data()->max_begin_cid > table_key_constraint.last_validated_on()) {
+      return false;
+    }
+    if (source_chunk->mvcc_data()->max_end_cid != MvccData::MAX_COMMIT_ID &&
+        source_chunk->mvcc_data()->max_end_cid > table_key_constraint.last_validated_on()) {
+      return false;
+    }
+  }
+
+  return true;
 }
 
 void Table::add_soft_foreign_key_constraint(const ForeignKeyConstraint& foreign_key_constraint) {

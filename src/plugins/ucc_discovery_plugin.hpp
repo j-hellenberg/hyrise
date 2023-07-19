@@ -67,14 +67,6 @@ class UccDiscoveryPlugin : public AbstractPlugin {
 
  private:
   /**
-   * Check if MVCC data tells us that the existing UCC is guaranteed to be still valid.
-   * To do this, we can simply check if the table chunks have seen any inserts/deletions since the last validation
-   * of the UCC. This is information is contained in the MVCC data of the chunks.
-   */
-  static bool _ucc_guaranteed_to_be_still_valid(const std::shared_ptr<const Table>& table,
-                                                const TableKeyConstraint& existing_ucc);
-
-  /**
    * Checks whether individual DictionarySegments contain duplicates. This is an efficient operation as the check is
    * simply comparing the length of the dictionary to that of the attribute vector. This function can therefore be used
    * for an early-out before the more expensive cross-segment uniqueness check.

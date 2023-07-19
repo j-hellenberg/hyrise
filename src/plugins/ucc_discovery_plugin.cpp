@@ -122,7 +122,7 @@ void UccDiscoveryPlugin::_validate_ucc_candidates(const UccCandidates& ucc_candi
 
     // Check if MVCC data tells us that the existing UCC is guaranteed to be still valid.
     // If it is, we can skip the expensive revalidation of the UCC.
-    if (existing_ucc != soft_key_constraints.cend() && _ucc_guaranteed_to_be_still_valid(table, *existing_ucc)) {
+    if (existing_ucc != soft_key_constraints.cend() && table->constraint_guaranteed_to_be_valid(*existing_ucc)) {
       message << " [skipped (already known and guaranteed to be still valid) in " << candidate_timer.lap_formatted()
               << "]";
       Hyrise::get().log_manager.add_message("UccDiscoveryPlugin", message.str(), LogLevel::Info);
@@ -174,26 +174,6 @@ void UccDiscoveryPlugin::_validate_ucc_candidates(const UccCandidates& ucc_candi
 
   Hyrise::get().default_lqp_cache->clear();
   Hyrise::get().default_pqp_cache->clear();
-}
-
-bool UccDiscoveryPlugin::_ucc_guaranteed_to_be_still_valid(const std::shared_ptr<const Table>& table,
-                                                           const TableKeyConstraint& existing_ucc) {
-  bool guaranteed_to_be_valid = true;
-  const auto chunk_count = table->chunk_count();
-  for (auto chunk_id = ChunkID{0}; chunk_id < chunk_count; ++chunk_id) {
-    const auto source_chunk = table->get_chunk(chunk_id);
-    if (source_chunk->mvcc_data()->max_begin_cid != MvccData::MAX_COMMIT_ID &&
-        source_chunk->mvcc_data()->max_begin_cid > existing_ucc.last_validated_on()) {
-      guaranteed_to_be_valid = false;
-      break;
-    }
-    if (source_chunk->mvcc_data()->max_end_cid != MvccData::MAX_COMMIT_ID &&
-        source_chunk->mvcc_data()->max_end_cid > existing_ucc.last_validated_on()) {
-      guaranteed_to_be_valid = false;
-      break;
-    }
-  }
-  return guaranteed_to_be_valid;
 }
 
 template <typename ColumnDataType>

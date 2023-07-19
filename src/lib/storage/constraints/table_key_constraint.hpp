@@ -30,6 +30,12 @@ class TableKeyConstraint final : public AbstractTableConstraint {
 
   CommitID last_validated_on() const;
 
+  /**
+   * Whether this key constraint can become invalid if the table data changes.
+   * This is false for constraints specified by the table schema, but true for "incidental" uniqueness of columns
+   * in any table state as adding duplicates would make them no longer unique.
+   */
+  bool can_become_invalid() const;
   void revalidated_on(CommitID revalidation_commit_id) const;
 
   size_t hash() const override;

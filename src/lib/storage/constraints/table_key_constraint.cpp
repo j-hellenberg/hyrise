@@ -19,6 +19,10 @@ KeyConstraintType TableKeyConstraint::key_type() const {
   return _key_type;
 }
 
+bool TableKeyConstraint::can_become_invalid() const {
+  return _last_validated_on != INVALID_COMMIT_ID;
+}
+
 CommitID TableKeyConstraint::last_validated_on() const {
   return _last_validated_on;
 }
