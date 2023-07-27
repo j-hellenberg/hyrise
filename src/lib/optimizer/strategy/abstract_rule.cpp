@@ -9,11 +9,11 @@
 
 namespace hyrise {
 
-inline IsCacheable operator&(IsCacheable lhs, IsCacheable rhs) {
+IsCacheable operator&(IsCacheable lhs, IsCacheable rhs) {
   return static_cast<IsCacheable>(static_cast<bool>(lhs) & static_cast<bool>(rhs));
 }
 
-inline IsCacheable& operator&=(IsCacheable& lhs, const IsCacheable rhs) {
+IsCacheable& operator&=(IsCacheable& lhs, const IsCacheable rhs) {
   return lhs = lhs & rhs;
 }
 
