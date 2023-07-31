@@ -357,7 +357,8 @@ TEST_F(OptimizerTest, CheckFalseCacheabilityOfOptimization) {
   auto& sm = Hyrise::get().storage_manager;
   sm.add_table("table", table);
 
-  table->add_soft_key_constraint({{ColumnID{0}}, KeyConstraintType::UNIQUE});
+  // Non-permanent UCC
+  table->add_soft_key_constraint({{ColumnID{0}}, KeyConstraintType::UNIQUE, CommitID{0}});
 
   const auto stored_table_node = StoredTableNode::make("table");
   const auto column0 = stored_table_node->get_column("column0");

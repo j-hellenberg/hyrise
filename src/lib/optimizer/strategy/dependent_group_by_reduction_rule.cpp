@@ -74,7 +74,7 @@ std::string DependentGroupByReductionRule::name() const {
 
 IsCacheable DependentGroupByReductionRule::_apply_to_plan_without_subqueries(
     const std::shared_ptr<AbstractLQPNode>& lqp_root) const {
-  auto rule_was_applied = false;
+  auto rule_was_applied_using_non_permanent_ucc = false;
 
   visit_lqp(lqp_root, [&](const auto& node) {
     if (node->type != LQPNodeType::Aggregate) {
@@ -99,23 +99,25 @@ IsCacheable DependentGroupByReductionRule::_apply_to_plan_without_subqueries(
     // Example: SELECT DISTINCT n_nationkey FROM nation is reflected as [ Aggregate GROUP BY n_nationkey ]. The
     // AggregateNode does not have more node expressions than the single GROUP BY column and the input (StoredTableNode
     // in this case) has a UCC for { n_nationkey }.
-    if (group_by_columns.size() == node->node_expressions.size() &&
-        node->left_input()->has_matching_ucc(group_by_columns)) {
-      rule_was_applied = true;
+    if (group_by_columns.size() == node->node_expressions.size()) {
+      auto matching_ucc = node->left_input()->get_matching_ucc(group_by_columns);
+      if (matching_ucc.has_value()) {
+        rule_was_applied_using_non_permanent_ucc = !matching_ucc->is_permanent();
 
-      const auto& output_expressions = aggregate_node.output_expressions();
-      // Remove the AggregateNode if it does not limit or reorder the output expressions.
-      if (expressions_equal(output_expressions, node->left_input()->output_expressions())) {
-        lqp_remove_node(node);
+        const auto& output_expressions = aggregate_node.output_expressions();
+        // Remove the AggregateNode if it does not limit or reorder the output expressions.
+        if (expressions_equal(output_expressions, node->left_input()->output_expressions())) {
+          lqp_remove_node(node);
+          return LQPVisitation::VisitInputs;
+        }
+
+        // Else, replace it with a ProjectionNode. For instance, SELECT DISTINCT n_name, n_regionkey FROM nation (the
+        // column order is different than in the original table) turns from [ Aggregate GROUP BY n_name, n_regionkey ] to
+        // [ Projection n_name, n_regionkey ].
+        const auto projection_node = ProjectionNode::make(output_expressions);
+        lqp_replace_node(node, projection_node);
         return LQPVisitation::VisitInputs;
       }
-
-      // Else, replace it with a ProjectionNode. For instance, SELECT DISTINCT n_name, n_regionkey FROM nation (the
-      // column order is different than in the original table) turns from [ Aggregate GROUP BY n_name, n_regionkey ] to
-      // [ Projection n_name, n_regionkey ].
-      const auto projection_node = ProjectionNode::make(output_expressions);
-      lqp_replace_node(node, projection_node);
-      return LQPVisitation::VisitInputs;
     }
 
     // Early exit (ii): If there are no functional dependencies, we can skip this rule.
@@ -190,13 +192,18 @@ IsCacheable DependentGroupByReductionRule::_apply_to_plan_without_subqueries(
     }
 
     if (group_by_list_changed) {
-      rule_was_applied = true;
+      // Functional dependencies are derived from UCCs, which means that the FD will be non-permanent if the
+      // original UCC was as well.
+      // However, propagating this information from UCCs to FDs and making sure it is retained correctly when
+      // FDs are transformed (combined, inflated, etc.), is up to future work.
+      // Therefore, to ensure correctness, just assume the FD to be non-permanent here.
+      rule_was_applied_using_non_permanent_ucc = true;
     }
 
     return LQPVisitation::VisitInputs;
   });
 
-  return rule_was_applied ? IsCacheable::No : IsCacheable::Yes;
+  return rule_was_applied_using_non_permanent_ucc ? IsCacheable::No : IsCacheable::Yes;
 }
 
 }  // namespace hyrise

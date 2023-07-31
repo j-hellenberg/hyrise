@@ -53,7 +53,8 @@ TEST_F(JoinToSemiJoinRuleTest, InnerJoinToSemiJoin) {
     auto& sm = Hyrise::get().storage_manager;
     sm.add_table("table", table);
 
-    table->add_soft_key_constraint({{ColumnID{0}}, KeyConstraintType::UNIQUE});
+    // Non-permanent UCC
+    table->add_soft_key_constraint({{ColumnID{0}}, KeyConstraintType::UNIQUE, CommitID{0}});
   }
 
   const auto stored_table_node = StoredTableNode::make("table");
@@ -78,7 +79,7 @@ TEST_F(JoinToSemiJoinRuleTest, InnerJoinToSemiJoin) {
   static_cast<JoinNode&>(*lqp->left_input()).mark_input_side_as_prunable(LQPInputSide::Right);
   const auto optimization_result = apply_rule_with_cacheability_check(rule, lqp);
 
-  EXPECT_FALSE(optimization_result.cacheable);
+  EXPECT_FALSE(optimization_result.cacheable); // Not cacheable because UCC used is not permanent
   EXPECT_LQP_EQ(optimization_result.logical_query_plan, expected_lqp);
 }
 
@@ -120,7 +121,7 @@ TEST_F(JoinToSemiJoinRuleTest, MultiPredicateInnerJoinToSemiJoinWithSingleEqui) 
   static_cast<JoinNode&>(*lqp->left_input()).mark_input_side_as_prunable(LQPInputSide::Right);
   const auto optimization_result = apply_rule_with_cacheability_check(rule, lqp);
 
-  EXPECT_FALSE(optimization_result.cacheable);
+  EXPECT_TRUE(optimization_result.cacheable); // Cacheable because UCC used is permanent
   EXPECT_LQP_EQ(optimization_result.logical_query_plan, expected_lqp);
 }
 
@@ -139,7 +140,8 @@ TEST_F(JoinToSemiJoinRuleTest, MultiPredicateInnerJoinToSemiJoinWithMultiEqui) {
     auto& sm = Hyrise::get().storage_manager;
     sm.add_table("table", table);
 
-    table->add_soft_key_constraint({{ColumnID{0}, ColumnID{1}}, KeyConstraintType::UNIQUE});
+    // Non-permanent UCC
+    table->add_soft_key_constraint({{ColumnID{0}, ColumnID{1}}, KeyConstraintType::UNIQUE, CommitID{0}});
   }
 
   const auto stored_table_node = StoredTableNode::make("table");
@@ -165,7 +167,7 @@ TEST_F(JoinToSemiJoinRuleTest, MultiPredicateInnerJoinToSemiJoinWithMultiEqui) {
   static_cast<JoinNode&>(*lqp->left_input()).mark_input_side_as_prunable(LQPInputSide::Right);
   const auto optimization_result = apply_rule_with_cacheability_check(rule, lqp);
 
-  EXPECT_FALSE(optimization_result.cacheable);
+  EXPECT_FALSE(optimization_result.cacheable); // Not cacheable because UCC used is not permanent
   EXPECT_LQP_EQ(optimization_result.logical_query_plan, expected_lqp);
 }
 
@@ -197,7 +199,7 @@ TEST_F(JoinToSemiJoinRuleTest, DoNotTouchInnerJoinWithNonEqui) {
   const auto expected_lqp = lqp->deep_copy();
   const auto optimization_result = apply_rule_with_cacheability_check(rule, lqp);
 
-  EXPECT_TRUE(optimization_result.cacheable);
+  EXPECT_TRUE(optimization_result.cacheable); // Cacheable because rule was not applied
   EXPECT_LQP_EQ(optimization_result.logical_query_plan, expected_lqp);
 }
 
@@ -228,7 +230,7 @@ TEST_F(JoinToSemiJoinRuleTest, DoNotTouchInnerJoinWithoutUcc) {
   const auto expected_lqp = lqp->deep_copy();
   const auto optimization_result = apply_rule_with_cacheability_check(rule, lqp);
 
-  EXPECT_TRUE(optimization_result.cacheable);
+  EXPECT_TRUE(optimization_result.cacheable); // Cacheable because rule was not applied
   EXPECT_LQP_EQ(optimization_result.logical_query_plan, expected_lqp);
 }
 
@@ -269,7 +271,7 @@ TEST_F(JoinToSemiJoinRuleTest, DoNotTouchInnerJoinWithoutMatchingUcc) {
   const auto expected_lqp = lqp->deep_copy();
   const auto optimization_result = apply_rule_with_cacheability_check(rule, lqp);
 
-  EXPECT_TRUE(optimization_result.cacheable);
+  EXPECT_TRUE(optimization_result.cacheable); // Cacheable because rule was not applied
   EXPECT_LQP_EQ(optimization_result.logical_query_plan, expected_lqp);
 }
 
@@ -302,7 +304,7 @@ TEST_F(JoinToSemiJoinRuleTest, DoNotTouchNonInnerJoin) {
   const auto expected_lqp = lqp->deep_copy();
   const auto optimization_result = apply_rule_with_cacheability_check(rule, lqp);
 
-  EXPECT_TRUE(optimization_result.cacheable);
+  EXPECT_TRUE(optimization_result.cacheable); // Cacheable because rule was not applied
   EXPECT_LQP_EQ(optimization_result.logical_query_plan, expected_lqp);
 }
 

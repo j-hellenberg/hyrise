@@ -25,7 +25,9 @@ class DependentGroupByReductionRuleTest : public StrategyBaseTest {
                                               {"column3", DataType::Int, false}};
 
     table_a = std::make_shared<Table>(column_definitions, TableType::Data, ChunkOffset{2}, UseMvcc::Yes);
-    table_a->add_soft_key_constraint({{ColumnID{0}}, KeyConstraintType::PRIMARY_KEY});
+    // Non-permanent UCC. In practice, primary key constraints will always be permanent (because they are given by
+    // the schema), but we want this constraint to be non-permanent in order to test query plan cacheability.
+    table_a->add_soft_key_constraint({{ColumnID{0}}, KeyConstraintType::PRIMARY_KEY, CommitID{0}});
     storage_manager.add_table("table_a", table_a);
     stored_table_node_a = StoredTableNode::make("table_a");
     column_a_0 = stored_table_node_a->get_column("column0");
@@ -88,7 +90,7 @@ TEST_F(DependentGroupByReductionRuleTest, SimpleCases) {
     const auto expected_lqp = lqp->deep_copy();
     const auto optimization_result = apply_rule_with_cacheability_check(rule, lqp);
 
-    EXPECT_TRUE(optimization_result.cacheable);
+    EXPECT_TRUE(optimization_result.cacheable); // Cacheable because rule was not applied
     EXPECT_LQP_EQ(optimization_result.logical_query_plan, expected_lqp);
   }
 
@@ -100,7 +102,7 @@ TEST_F(DependentGroupByReductionRuleTest, SimpleCases) {
     const auto expected_lqp = lqp->deep_copy();
     const auto optimization_result = apply_rule_with_cacheability_check(rule, lqp);
 
-    EXPECT_TRUE(optimization_result.cacheable);
+    EXPECT_TRUE(optimization_result.cacheable); // Cacheable because rule was not applied
     EXPECT_LQP_EQ(optimization_result.logical_query_plan, expected_lqp);
   }
 }
@@ -121,6 +123,8 @@ TEST_F(DependentGroupByReductionRuleTest, SingleKeyReduction) {
 
     const auto optimization_result = apply_rule_with_cacheability_check(rule, lqp);
 
+    // Not cacheable because FD was used, which we assume to be non-permanent
+    // (it is also actually non-permanent because the used FD is derived from a non-permanent UCC here).
     EXPECT_FALSE(optimization_result.cacheable);
     EXPECT_LQP_EQ(optimization_result.logical_query_plan, expected_lqp);
   }
@@ -138,6 +142,8 @@ TEST_F(DependentGroupByReductionRuleTest, SingleKeyReduction) {
 
     const auto optimization_result = apply_rule_with_cacheability_check(rule, lqp);
 
+    // Not cacheable because FD was used, which we assume to be non-permanent
+    // (it is also actually non-permanent because the used FD is derived from a non-permanent UCC here).
     EXPECT_FALSE(optimization_result.cacheable);
     EXPECT_LQP_EQ(optimization_result.logical_query_plan, expected_lqp);
   }
@@ -154,7 +160,7 @@ TEST_F(DependentGroupByReductionRuleTest, IncompleteKey) {
   const auto expected_lqp = lqp->deep_copy();
   const auto optimization_result = apply_rule_with_cacheability_check(rule, lqp);
 
-  EXPECT_TRUE(optimization_result.cacheable);
+  EXPECT_TRUE(optimization_result.cacheable); // Cacheable because rule was not applied
   EXPECT_LQP_EQ(optimization_result.logical_query_plan, expected_lqp);
 }
 
@@ -169,7 +175,7 @@ TEST_F(DependentGroupByReductionRuleTest, FullKeyGroupBy) {
   const auto expected_lqp = lqp->deep_copy();
   const auto optimization_result = apply_rule_with_cacheability_check(rule, lqp);
 
-  EXPECT_TRUE(optimization_result.cacheable);
+  EXPECT_TRUE(optimization_result.cacheable); // Cacheable because rule was not applied
   EXPECT_LQP_EQ(optimization_result.logical_query_plan, expected_lqp);
 }
 
@@ -188,6 +194,8 @@ TEST_F(DependentGroupByReductionRuleTest, FullInconsecutiveKeyGroupBy) {
 
   const auto optimization_result = apply_rule_with_cacheability_check(rule, lqp);
 
+  // Not cacheable because FD was used, which we assume to be non-permanent
+  // (in this case, the FD is actually based on a permanent UCC, but we don't check that yet).
   EXPECT_FALSE(optimization_result.cacheable);
   EXPECT_LQP_EQ(optimization_result.logical_query_plan, expected_lqp);
 }
@@ -213,6 +221,8 @@ TEST_F(DependentGroupByReductionRuleTest, JoinSingleKeyPrimaryKey) {
 
   const auto optimization_result = apply_rule_with_cacheability_check(rule, lqp);
 
+  // Not cacheable because FD was used, which we assume to be non-permanent
+  // (it is also actually non-permanent because the used FD is derived from a non-permanent UCC here).
   EXPECT_FALSE(optimization_result.cacheable);
   EXPECT_LQP_EQ(optimization_result.logical_query_plan, expected_lqp);
 }
@@ -228,7 +238,7 @@ TEST_F(DependentGroupByReductionRuleTest, AggregateButNoChanges) {
   const auto expected_lqp = lqp->deep_copy();
   const auto optimization_result = apply_rule_with_cacheability_check(rule, lqp);
 
-  EXPECT_TRUE(optimization_result.cacheable);
+  EXPECT_TRUE(optimization_result.cacheable); // Cacheable because rule was not applied
   EXPECT_LQP_EQ(optimization_result.logical_query_plan, expected_lqp);
 }
 
@@ -248,6 +258,8 @@ TEST_F(DependentGroupByReductionRuleTest, SimpleAggregateFollowsAdaptedAggregate
 
   const auto optimization_result = apply_rule_with_cacheability_check(rule, lqp);
 
+  // Not cacheable because FD was used, which we assume to be non-permanent
+  // (it is also actually non-permanent because the used FD is derived from a non-permanent UCC here).
   EXPECT_FALSE(optimization_result.cacheable);
   EXPECT_LQP_EQ(optimization_result.logical_query_plan, expected_lqp);
 }
@@ -270,6 +282,8 @@ TEST_F(DependentGroupByReductionRuleTest, SortFollowsAggregate) {
 
   const auto optimization_result = apply_rule_with_cacheability_check(rule, lqp);
 
+  // Not cacheable because FD was used, which we assume to be non-permanent
+  // (it is also actually non-permanent because the used FD is derived from a non-permanent UCC here).
   EXPECT_FALSE(optimization_result.cacheable);
   EXPECT_LQP_EQ(optimization_result.logical_query_plan, expected_lqp);
 }
@@ -287,7 +301,7 @@ TEST_F(DependentGroupByReductionRuleTest, NoAdaptionForNullableColumns) {
   const auto expected_lqp = lqp->deep_copy();
   const auto optimization_result = apply_rule_with_cacheability_check(rule, lqp);
 
-  EXPECT_TRUE(optimization_result.cacheable);
+  EXPECT_TRUE(optimization_result.cacheable); // Cacheable because rule was not applied
   EXPECT_LQP_EQ(optimization_result.logical_query_plan, expected_lqp);
 }
 
@@ -306,6 +320,8 @@ TEST_F(DependentGroupByReductionRuleTest, ShortConstraintsFirst) {
 
   const auto optimization_result = apply_rule_with_cacheability_check(rule, lqp);
 
+  // Not cacheable because FD was used, which we assume to be non-permanent
+  // (in this case, the FD is actually based on a permanent UCC, but we don't check that yet).
   EXPECT_FALSE(optimization_result.cacheable);
   EXPECT_LQP_EQ(optimization_result.logical_query_plan, expected_lqp);
 }
@@ -338,6 +354,8 @@ TEST_F(DependentGroupByReductionRuleTest, MultiKeyReduction) {
 
   const auto optimization_result = apply_rule_with_cacheability_check(rule, lqp);
 
+  // Not cacheable because FD was used, which we assume to be non-permanent
+  // (in this case, the FD is actually constructed directly in this test and thus permanent, but we don't check that yet).
   EXPECT_FALSE(optimization_result.cacheable);
   EXPECT_LQP_EQ(optimization_result.logical_query_plan, expected_lqp);
 }
@@ -361,7 +379,7 @@ TEST_F(DependentGroupByReductionRuleTest, RemoveSuperfluousDistinctAggregateSimp
     const auto expected_lqp = stored_table_node_a->deep_copy();
     const auto optimization_result = apply_rule_with_cacheability_check(rule, lqp);
 
-    EXPECT_FALSE(optimization_result.cacheable);
+    EXPECT_FALSE(optimization_result.cacheable); // Not cacheable because UCC used is not permanent
     EXPECT_LQP_EQ(optimization_result.logical_query_plan, expected_lqp);
   }
 
@@ -381,7 +399,7 @@ TEST_F(DependentGroupByReductionRuleTest, RemoveSuperfluousDistinctAggregateSimp
 
     const auto optimization_result = apply_rule_with_cacheability_check(rule, lqp);
 
-    EXPECT_FALSE(optimization_result.cacheable);
+    EXPECT_TRUE(optimization_result.cacheable); // Cacheable because used UCC is implied by query and thus permanent
     EXPECT_LQP_EQ(optimization_result.logical_query_plan, expected_lqp);
   }
 }
@@ -402,7 +420,7 @@ TEST_F(DependentGroupByReductionRuleTest, RemoveSuperfluousDistinctAggregateProj
 
     const auto optimization_result = apply_rule_with_cacheability_check(rule, lqp);
 
-    EXPECT_FALSE(optimization_result.cacheable);
+    EXPECT_FALSE(optimization_result.cacheable); // Not cacheable because UCC used is not permanent
     EXPECT_LQP_EQ(optimization_result.logical_query_plan, expected_lqp);
   }
 
@@ -421,7 +439,7 @@ TEST_F(DependentGroupByReductionRuleTest, RemoveSuperfluousDistinctAggregateProj
 
     const auto optimization_result = apply_rule_with_cacheability_check(rule, lqp);
 
-    EXPECT_FALSE(optimization_result.cacheable);
+    EXPECT_TRUE(optimization_result.cacheable); // Cacheable because UCC used is permanent
     EXPECT_LQP_EQ(optimization_result.logical_query_plan, expected_lqp);
   }
 }
@@ -439,7 +457,7 @@ TEST_F(DependentGroupByReductionRuleTest, DoNotRemoveRequiredDistinctAggregate) 
     const auto expected_lqp = lqp->deep_copy();
     const auto optimization_result = apply_rule_with_cacheability_check(rule, lqp);
 
-    EXPECT_TRUE(optimization_result.cacheable);
+    EXPECT_TRUE(optimization_result.cacheable); // Cacheable because rule was not applied
     EXPECT_LQP_EQ(optimization_result.logical_query_plan, expected_lqp);
   }
 
@@ -454,7 +472,7 @@ TEST_F(DependentGroupByReductionRuleTest, DoNotRemoveRequiredDistinctAggregate) 
     const auto expected_lqp = lqp->deep_copy();
     const auto optimization_result = apply_rule_with_cacheability_check(rule, lqp);
 
-    EXPECT_TRUE(optimization_result.cacheable);
+    EXPECT_TRUE(optimization_result.cacheable); // Cacheable because rule was not applied
     EXPECT_LQP_EQ(optimization_result.logical_query_plan, expected_lqp);
   }
 }
