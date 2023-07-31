@@ -173,6 +173,10 @@ IsCacheable DependentGroupByReductionRule::_apply_to_plan_without_subqueries(
 
       const auto success = remove_dependent_group_by_columns(fd, aggregate_node, group_by_columns);
       if (success) {
+        // Functional dependencies are derived from UCCs. In case we encounter a non-permanent FD,
+        // this means we encountered an underlying non-permanent UCC as well.
+        rule_was_applied_using_non_permanent_ucc |= !fd.is_permanent();
+
         // Refresh data structures correspondingly.
         group_by_list_changed = true;
         group_by_columns = fetch_group_by_columns();
@@ -189,15 +193,6 @@ IsCacheable DependentGroupByReductionRule::_apply_to_plan_without_subqueries(
         lqp_root->type != LQPNodeType::Projection) {
       const auto projection_node = std::make_shared<ProjectionNode>(root_output_expressions);
       lqp_insert_node(lqp_root, LQPInputSide::Left, projection_node);
-    }
-
-    if (group_by_list_changed) {
-      // Functional dependencies are derived from UCCs, which means that the FD will be non-permanent if the
-      // original UCC was as well.
-      // However, propagating this information from UCCs to FDs and making sure it is retained correctly when
-      // FDs are transformed (combined, inflated, etc.), is up to future work.
-      // Therefore, to ensure correctness, just assume the FD to be non-permanent here.
-      rule_was_applied_using_non_permanent_ucc = true;
     }
 
     return LQPVisitation::VisitInputs;
