@@ -34,7 +34,7 @@ std::string IndexScanRule::name() const {
   return name;
 }
 
-void IndexScanRule::_apply_to_plan_without_subqueries(const std::shared_ptr<AbstractLQPNode>& lqp_root) const {
+IsCacheable IndexScanRule::_apply_to_plan_without_subqueries(const std::shared_ptr<AbstractLQPNode>& lqp_root) const {
   DebugAssert(cost_estimator, "IndexScanRule requires cost estimator to be set");
   Assert(lqp_root->type == LQPNodeType::Root, "ExpressionReductionRule needs root to hold onto");
 
@@ -57,6 +57,8 @@ void IndexScanRule::_apply_to_plan_without_subqueries(const std::shared_ptr<Abst
 
     return LQPVisitation::VisitInputs;
   });
+
+  return IsCacheable::Yes;
 }
 
 bool IndexScanRule::_is_index_scan_applicable(const ChunkIndexStatistics& index_statistics,
