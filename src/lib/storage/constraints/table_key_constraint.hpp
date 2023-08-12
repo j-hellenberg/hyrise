@@ -32,7 +32,7 @@ class TableKeyConstraint final : public AbstractTableConstraint {
 
   /**
    * Whether this key constraint can become invalid if the table data changes.
-   * This is false for constraints specified by the table schema, but true for "incidental" uniqueness of columns
+   * This is false for constraints specified by the table schema, but true for the "incidental" uniqueness of columns
    * in any table state as adding duplicates would make them no longer unique.
    */
   bool can_become_invalid() const;
