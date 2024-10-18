@@ -181,7 +181,7 @@ find_package(Tbb REQUIRED)
 find_package(Readline REQUIRED)
 find_package(Curses REQUIRED)
 find_package(SQLite3 REQUIRED)
-find_package(Boost REQUIRED COMPONENTS container date_time)
+find_package(Boost REQUIRED COMPONENTS container date_time NO_MODULE)
 
 add_definitions(-DBOOST_THREAD_VERSION=5)
 set(BOOST_LIBS Boost::container Boost::date_time)
